@@ -12,12 +12,17 @@
   - Right-click on the project > Properties > Driver Settings > Target OS version > Windows 7
 
 ### Build Tools
-- Visual Studio 2017 Community
-- Windows SDK 10.0.17134
-- Windows Driver Kit 10.0.17134
+- Visual Studio 2019 Community(v142)
+  - Build with VS 2017(v141) is also possible if platform toolset in setting is configured to v141
+- Windows SDK 10.0.18362.0(recommended)
+  - VS 2019(v142): requires &gt;= 10.0.17xxx
+  - VS 2017(v141): requires &gt;= 10.0.18xxx
+- Windows Driver Kit Windows 10, version 1903 (10.0.18362)
+  - WDK 10.0.17134(1803), 10.0.17763(1809), 10.0.18346 are also tested
 
 ### Build Process
 - Open usbip_win.sln
+- If VS 2017 is used, SDK version for userspace projects(usbip, usbip_common, usbipd, stubctl) should be adjusted.
 - Set certificate driver signing for usbip\_stub and usbip\_vhci projects.
   - Right-click on the project > Properties > Driver Signing > Test Certificate
   - Browse to driver/usbip\_test.pfx
@@ -98,6 +103,39 @@
   - Click Finish at 'Completing the Add/Remove Hardware Wizard.'
 - Attach a remote USB device
   - usbip.exe attach -r &lt;usbip server ip&gt; -b 2-2
+
+### Reporting Bug
+- usbip-win is not yet ready for production use. We could find problems with more detailed logs.
+
+#### How to get windows kernel log
+- Set registry key to enable a debug filter
+  - usbip-win uses [DbgPrintEx API for kernel logging](https://docs.microsoft.com/en-us/windows-hardware/drivers/devtest/reading-and-filtering-debugging-messages).
+  - save following as .reg and run or manually insert a registry key
+  - restart is required
+```
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Debug Print Filter]
+"IHVDRIVER"=dword:ffffffff
+```
+- Run a debugging log viewer program before you test
+  - [DebugView](https://docs.microsoft.com/en-us/sysinternals/downloads/debugview) is a good tool to view the logs
+  
+- If your testing machine suffer from BSOD(blue screen on death), you should get it via remote debugging.
+  - WinDbg on virtual machines would be good to get logs
+
+#### How to get usbip forwarder log
+- usbip-win transmits usbip packets via a userland forwarder.
+  - forwarder log is the best to look into usbip packet internals. 
+- edit usbip_forward.c to define DEBUG_PDU at the head of the file
+- compile usbip.exe or usbipd.exe
+- debug_pdu.log is created at the path where an executable runs.  
+
+#### How to get linux kernel log
+- Sometimes linux kernel log is required
+```
+# dmesg --follow | tee kernel_log.txt
+```
 
 <hr>
 <sub>This project was supported by Basic Science Research Program through the National Research Foundation of Korea(NRF) funded by the Ministry of Education(2016R1A6A3A11930295).</sub>

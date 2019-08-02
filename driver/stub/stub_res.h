@@ -1,10 +1,10 @@
 #pragma once
 
 #include "stub_dev.h"
+#include "usbip_proto.h"
 
 typedef struct stub_res {
 	PIRP	irp;
-	BOOLEAN	hdr_sent;
 	struct usbip_header	header;
 	PVOID	data;
 	int	data_len;
@@ -12,7 +12,7 @@ typedef struct stub_res {
 } stub_res_t;
 
 #ifdef DBG
-const char *dbg_stub_res(stub_res_t *sres);
+const char *dbg_stub_res(stub_res_t *sres, usbip_stub_dev_t* devstub);
 #endif
 
 stub_res_t *
@@ -28,6 +28,5 @@ NTSTATUS collect_done_stub_res(usbip_stub_dev_t *devstub, PIRP irp_read);
 void reply_stub_req(usbip_stub_dev_t *devstub, stub_res_t *sres);
 
 void reply_stub_req_hdr(usbip_stub_dev_t *devstub, unsigned int cmd, unsigned long seqnum);
-void reply_stub_req_out(usbip_stub_dev_t *devstub, unsigned int cmd, unsigned long seqnum, int data_len);
 void reply_stub_req_err(usbip_stub_dev_t *devstub, unsigned int cmd, unsigned long seqnum, int err);
 void reply_stub_req_data(usbip_stub_dev_t *devstub, unsigned long seqnum, PVOID data, int data_len, BOOLEAN need_copy);
