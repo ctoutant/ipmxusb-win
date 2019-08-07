@@ -131,7 +131,7 @@ build_udev(devno_t devno, struct usbip_usb_device *pudev)
 
 	devpath = get_devpath_from_devno(devno);
 	if (devpath == NULL) {
-		err("%s: invalid devno: %hhu. devpath returned %s", __FUNCTION__, devno, devpath);
+		dbg("%s: invalid devno: %hhu. devpath returned %s", __FUNCTION__, devno, devpath);
 		return FALSE;
 	}
 
