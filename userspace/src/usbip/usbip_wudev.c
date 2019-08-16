@@ -70,14 +70,23 @@ fetch_conf_desc(SOCKET sockfd, unsigned devid, char *pdesc, unsigned desc_size)
 static void
 supplement_with_interface(SOCKET sockfd, usbip_wudev_t *wudev)
 {
-	unsigned char	buf[9];
+	unsigned char	buf[18];
 
-	if (fetch_conf_desc(sockfd, wudev->devid, buf, 9) < 0) {
+	if (fetch_conf_desc(sockfd, wudev->devid, buf, 18) < 0) {
 		err("failed to adjust device descriptor with interface descriptor\n");
 		return;
 	}
 
 	wudev->bNumInterfaces = buf[4];
+
+	//initialize cls/subcls/pro for 1 interface device before importing
+	if (wudev->bNumInterfaces == 1)
+	{
+		wudev->bDeviceClass = buf[14];
+		wudev->bDeviceSubClass = buf[15];
+		wudev->bDeviceProtocol = buf[16];
+	}
+
 
 }
 
