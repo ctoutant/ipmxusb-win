@@ -16,11 +16,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <guiddef.h>
+
 #include "usbip_common.h"
 #include "usbip_network.h"
 
 #include "usbip_windows.h"
 #include "usbip_setupdi.h"
+
+/*
+* Define USB Bus Devices (hubs and host controllers) so we can skip them easily
+* {36FC9E60-C465-11CF-8056-444553540000}
+*/
+const GUID GUID_HUBS_HC = {0x36FC9E60, 0xC465, 0x11CF, {0x80, 0x56, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
 
 typedef struct {
 	unsigned short	vendor, product;
@@ -55,16 +63,16 @@ add_usbdev(usbdev_list_t *usbdev_list, const char *id_hw, devno_t devno)
 	usbdev_t	*usbdevs, *usbdev;
 
 	if (usbdev_list->n_usbdevs == 255) {
-		err("add_usbdev: exceed maximum usb devices");
+		err("%s: exceed maximum usb devices", __FUNCTION__);
 		return;
 	}
 	if (!get_usbdev_info(id_hw, &vendor, &product)) {
-		err("add_usbdev: invalid hw id: %s", id_hw);
+		err("%s: invalid hw id: %s", __FUNCTION__, id_hw);
 		return;
 	}
 	usbdevs = (usbdev_t *)realloc(usbdev_list->usbdevs, sizeof(usbdev_t) * (usbdev_list->n_usbdevs + 1));
 	if (usbdevs == NULL) {
-		err("add_usbdev: out of memory");
+		err("%s: out of memory", __FUNCTION__);
 		return;
 	}
 	usbdev_list->n_usbdevs++;
@@ -113,11 +121,26 @@ walker_list(HDEVINFO dev_info, PSP_DEVINFO_DATA pdev_info_data, devno_t devno, v
 
 	id_hw = get_id_hw(dev_info, pdev_info_data);
 	if (id_hw == NULL) {
-		err("failed to get hw id\n");
+		err("%s: failed to get hw id\n", __FUNCTION__);
 		return 0;
 	}
 
-	add_usbdev(usbdev_list, id_hw, devno);
+	/* Try to add device only if not determined as HUB or Host Controller */
+	if (!IsEqualGUID(&pdev_info_data->ClassGuid, &GUID_HUBS_HC)) {
+		dbg("Found GUID {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}\n",
+				pdev_info_data->ClassGuid.Data1,
+				pdev_info_data->ClassGuid.Data2,
+				pdev_info_data->ClassGuid.Data3,
+				pdev_info_data->ClassGuid.Data4[0],
+				pdev_info_data->ClassGuid.Data4[1],
+				pdev_info_data->ClassGuid.Data4[2],
+				pdev_info_data->ClassGuid.Data4[3],
+				pdev_info_data->ClassGuid.Data4[4],
+				pdev_info_data->ClassGuid.Data4[5],
+				pdev_info_data->ClassGuid.Data4[6],
+				pdev_info_data->ClassGuid.Data4[7]);
+		add_usbdev(usbdev_list, id_hw, devno);
+	}
 	free(id_hw);
 	return 0;
 }

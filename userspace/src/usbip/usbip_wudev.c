@@ -4,17 +4,9 @@
 #include "usbip_proto.h"
 
 static BOOL
-is_class_in_interface(usbip_wudev_t *wudev)
+is_zero_class(usbip_wudev_t *wudev)
 {
 	if (wudev->bDeviceClass == 0 && wudev->bDeviceSubClass == 0 && wudev->bDeviceProtocol == 0)
-		return TRUE;
-	return FALSE;
-}
-
-static BOOL
-is_IAD_device(usbip_wudev_t *wudev)
-{
-	if (wudev->bDeviceClass == 0xef && wudev->bDeviceSubClass == 2 && wudev->bDeviceProtocol == 1)
 		return TRUE;
 	return FALSE;
 }
@@ -79,15 +71,15 @@ supplement_with_interface(SOCKET sockfd, usbip_wudev_t *wudev)
 
 	wudev->bNumInterfaces = buf[4];
 
-	//initialize cls/subcls/pro for 1 interface device before importing
-	if (wudev->bNumInterfaces == 1)
-	{
+	if (wudev->bNumInterfaces == 1){
+		/* buf[4] holds the number of interfaces in USB configuration.
+		 * Supplement class/subclass/protocol only if there exists only single interface.
+		 * A device with multiple interfaces will be detected as a composite by vhci. 
+		 */
 		wudev->bDeviceClass = buf[14];
 		wudev->bDeviceSubClass = buf[15];
 		wudev->bDeviceProtocol = buf[16];
 	}
-
-
 }
 
 static void
@@ -113,11 +105,11 @@ get_wudev(SOCKET sockfd, usbip_wudev_t *wudev, struct usbip_usb_device *udev)
 	setup_wudev_from_udev(wudev, udev);
 
 	/* Many devices have 0 usb class number in a device descriptor.
-	* 0 value means that class number is determined at interface level.
-	* USB class, subclass and protocol numbers should be setup before importing.
-	* Because windows vhci driver builds a device compatible id with those numbers.
-	*/
-	if (is_class_in_interface(wudev)) {
+	 * 0 value means that class number is determined at interface level.
+	 * USB class, subclass and protocol numbers should be setup before importing.
+	 * Because windows vhci driver builds a device compatible id with those numbers.
+	 */
+	if (is_zero_class(wudev)) {
 		supplement_with_interface(sockfd, wudev);
 	}
 }
