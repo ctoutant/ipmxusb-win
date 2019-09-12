@@ -205,7 +205,7 @@ store_urb_class_vendor_partial(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	if (buf == NULL)
 		return STATUS_INSUFFICIENT_RESOURCES;
 
-	RtlCopyMemory(dst, urb_vc->TransferBuffer, urb_vc->TransferBufferLength);
+	RtlCopyMemory(dst, buf, urb_vc->TransferBufferLength);
 	irp->IoStatus.Information = urb_vc->TransferBufferLength;
 	vpdo->len_sent_partial = 0;
 
