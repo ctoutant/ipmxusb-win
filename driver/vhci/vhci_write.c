@@ -72,7 +72,7 @@ post_select_config(pusbip_vpdo_dev_t vpdo, PURB urb)
 	struct _URB_SELECT_CONFIGURATION	*urb_selc = &urb->UrbSelectConfiguration;
 
 	// If ConfigurationDescriptor is NULL, the device will be set to an unconfigured state.
-	if (urb_selc == NULL || urb_selc->ConfigurationDescriptor == NULL) {
+	if (urb_selc->ConfigurationDescriptor == NULL) {
 		DBGE(DBG_WRITE, "post_select_config: unconfigured state\n");
 		return STATUS_SUCCESS;
 	}

@@ -191,15 +191,15 @@ store_urb_class_vendor_partial(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 {
 	struct _URB_CONTROL_VENDOR_OR_CLASS_REQUEST	*urb_vc = &urb->UrbControlVendorClassRequest;
 	PVOID	dst;
-	char* buf;
+	char    *buf;
 
 	dst = get_read_irp_data(irp, urb_vc->TransferBufferLength);
 	if (dst == NULL)
 		return STATUS_BUFFER_TOO_SMALL;
 
 	/*
-	 * reading from TransferBuffer or TransferBufferMDL
-	 * either of them is not null
+	 * reading from TransferBuffer or TransferBufferMDL,
+	 * whichever of them is not null
 	 */
 	buf = get_buf(urb_vc->TransferBuffer, urb_vc->TransferBufferMDL);
 	if (buf == NULL)
