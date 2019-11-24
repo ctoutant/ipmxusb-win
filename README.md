@@ -93,7 +93,8 @@ usbip.exe list -l
   - reboot the system to apply
 - Copy `usbip.exe`, `usbip_vhci.sys`, `usbip_vhci.inf`, `usbip_vhci.cer`, `usbip_vhci.cat` into a folder in target machine
   - You can find `usbip.exe`, `usbip_vhci.sys`, `usbip_vhci.cer`, `usbip_vhci.inf` in output folder after build or on [release](https://github.com/cezanne/usbip-win/releases) page.
-  - `usbip_vhci.cat` can be found from `usbip_vhci` subfolder of output folder
+  - `usbip_vhci.cat` can be found from `usbip_vhci` subfolder of output folder.
+  - `usbip_vhci.cer` can be found in [0.0.1 release](https://github.com/cezanne/usbip-win/releases/tag/0.0.1) page.
 - Install USB/IP VHCI driver
   - Start Device manager
   - Choose "Add Legacy Hardware" from the "Action" menu.
@@ -128,9 +129,9 @@ Windows Registry Editor Version 5.00
 #### How to get usbip forwarder log
 - usbip-win transmits usbip packets via a userland forwarder.
   - forwarder log is the best to look into usbip packet internals. 
-- edit usbip_forward.c to define DEBUG_PDU at the head of the file
-- compile usbip.exe or usbipd.exe
-- debug_pdu.log is created at the path where an executable runs.  
+- edit `usbip_forward.c` to define `DEBUG_PDU` at the head of the file
+- compile `usbip.exe` or `usbipd.exe`
+- `debug_pdu.log` is created at the path where an executable runs.  
 
 #### How to get linux kernel log
 - Sometimes linux kernel log is required
