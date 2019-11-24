@@ -42,8 +42,8 @@
 - Install USB/IP test certificate
   - Install `driver/usbip_test.pfx` (password: usbip)
   - Certificate should be installed into
-    1. "Trusted Root Certification Authority" in "Local Machine" (not current user) and
-    2. "Trusted Publishers" in "Local Machine" (not current user)
+    1. "Trusted Root Certification Authority" in "Local Computer" (not current user) and
+    2. "Trusted Publishers" in "Local Computer" (not current user)
 - Enable test signing
   - `> bcdedit.exe /set TESTSIGNING ON`
   - reboot the system to apply
@@ -86,8 +86,8 @@ usbip.exe list -l
 - Install USB/IP test certificate
   - Install `driver/usbip_test.pfx` (password: usbip)
   - Certificate should be installed into
-    1. "Trusted Root Certification Authority" in "Local Machine" (not current user) and
-    2. "Trusted Publishers" in "Local Machine" (not current user)
+    1. "Trusted Root Certification Authority" in "Local Computer" (not current user) and
+    2. "Trusted Publishers" in "Local Computer" (not current user)
 - Enable test signing
   - `> bcdedit.exe /set TESTSIGNING ON`
   - reboot the system to apply
