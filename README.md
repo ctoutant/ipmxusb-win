@@ -94,14 +94,14 @@ usbip.exe list -l
 - Copy `usbip.exe`, `usbip_vhci.sys`, `usbip_vhci.inf`, `usbip_vhci.cer`, `usbip_vhci.cat` into a folder in target machine
   - You can find `usbip.exe`, `usbip_vhci.sys`, `usbip_vhci.cer`, `usbip_vhci.inf` in output folder after build or on [release](https://github.com/cezanne/usbip-win/releases) page.
   - `usbip_vhci.cat` can be found from `usbip_vhci` subfolder of output folder
-- Install USB/IP vhci driver
+- Install USB/IP VHCI driver
   - Start Device manager
   - Choose "Add Legacy Hardware" from the "Action" menu.
-  - Select 'Install the hardware that I manually select from the list'.
-  - Click 'Next'.
-  - Click 'Have Disk', click 'Browse', choose the copied folder, and click OK.
-  - Click on the 'USB/IP VHCI, and then click Next.
-  - Click Finish at 'Completing the Add/Remove Hardware Wizard.'
+  - Select "Install the hardware that I manually select from the list".
+  - Click "Next".
+  - Click "Have Disk", click "Browse", choose the copied folder, and click "OK".
+  - Click on the "USB/IP VHCI", and then click "Next".
+  - Click Finish at "Completing the Add/Remove Hardware Wizard".
 - Attach a remote USB device
   - `> usbip.exe attach -r <usbip server ip> -b 2-2`
 
@@ -122,7 +122,7 @@ Windows Registry Editor Version 5.00
 - Run a debugging log viewer program before you test
   - [DebugView](https://docs.microsoft.com/en-us/sysinternals/downloads/debugview) is a good tool to view the logs
   
-- If your testing machine suffer from BSOD(blue screen on death), you should get it via remote debugging.
+- If your testing machine suffer from BSOD (blue screen on death), you should get it via remote debugging.
   - WinDbg on virtual machines would be good to get logs
 
 #### How to get usbip forwarder log
