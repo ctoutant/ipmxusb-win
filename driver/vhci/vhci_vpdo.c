@@ -235,7 +235,7 @@ setup_vpdo_inst_id(pusbip_vpdo_dev_t vpdo, PIRP irp)
 	if (id_inst == NULL) {
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	RtlStringCchPrintfW(id_inst, 17, L"%llx", vpdo->instance);
+	RtlStringCchPrintfW(id_inst, 17, L"%016llx", vpdo->instance);
 	irp->IoStatus.Information = (ULONG_PTR)id_inst;
 	return STATUS_SUCCESS;
 }
