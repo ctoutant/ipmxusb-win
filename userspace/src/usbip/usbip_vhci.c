@@ -121,6 +121,8 @@ usbip_vhci_attach_device(HANDLE hdev, int port, usbip_wudev_t *wudev)
 
 	plugin.port = port;
 
+	plugin.instance = wudev->idInstance;
+
 	if (!DeviceIoControl(hdev, IOCTL_USBIP_VHCI_PLUGIN_HARDWARE,
 		&plugin, sizeof(plugin), NULL, 0, &unused, NULL)) {
 		err("usbip_vhci_attach_device: DeviceIoControl failed: err: 0x%lx", GetLastError());

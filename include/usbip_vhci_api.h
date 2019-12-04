@@ -71,6 +71,8 @@ typedef struct _ioctl_usbip_vhci_plugin
 	unsigned char	protocol;
 
 	signed char	port;
+
+	unsigned long long	instance;
 } ioctl_usbip_vhci_plugin;
 
 typedef struct _ioctl_usbip_vhci_get_ports_status

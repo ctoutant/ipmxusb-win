@@ -17,6 +17,8 @@ typedef struct {
 	uint8_t		bDeviceProtocol;
 
 	uint8_t		bNumInterfaces;
+
+	uint64_t	idInstance;
 } usbip_wudev_t;
 
 extern void get_wudev(SOCKET sockfd, usbip_wudev_t *uwdev, struct usbip_usb_device *udev);

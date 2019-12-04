@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <time.h>
 
 wchar_t *
 utf8_to_wchar(const char *str)
@@ -84,4 +85,17 @@ get_module_dir(void)
 			return path_mod;
 		}
 	}
+}
+
+// Courtesy of https://stackoverflow.com/a/28116032
+unsigned long long
+llrand() {
+	unsigned long long r = 0;
+
+	srand((unsigned int)time(NULL));
+	for (int i = 0; i < 5; ++i) {
+		r = (r << 15) | (rand() & 0x7FFF);
+	}
+
+	return r & 0xFFFFFFFFFFFFFFFFULL;
 }

@@ -77,6 +77,7 @@ vhci_plugin_dev(ioctl_usbip_vhci_plugin *plugin, pusbip_vhub_dev_t vhub, PFILE_O
 	vpdo->subclass = plugin->subclass;
 	vpdo->protocol = plugin->protocol;
 	vpdo->inum = plugin->inum;
+	vpdo->instance = plugin->instance;
 
 	devpdo_old = (pusbip_vpdo_dev_t)InterlockedCompareExchangePointer(&(fo->FsContext), vpdo, 0);
 	if (devpdo_old) {

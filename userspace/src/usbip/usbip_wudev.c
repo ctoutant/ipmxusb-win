@@ -97,6 +97,8 @@ setup_wudev_from_udev(usbip_wudev_t *wudev, struct usbip_usb_device *udev)
 	wudev->bDeviceProtocol = udev->bDeviceProtocol;
 
 	wudev->bNumInterfaces = udev->bNumInterfaces;
+
+	wudev->idInstance;
 }
 
 void

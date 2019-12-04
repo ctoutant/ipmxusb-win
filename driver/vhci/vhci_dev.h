@@ -106,6 +106,9 @@ typedef struct
 	// unique port number of the device on the bus
 	ULONG	port;
 
+	// Instance ID or Serial Number
+	ULONGLONG	instance;
+
 	// Link point to hold all the vpdos for a single bus together
 	LIST_ENTRY	Link;
 
