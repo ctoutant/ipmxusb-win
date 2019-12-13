@@ -50,46 +50,52 @@ struct command {
 
 static const struct command cmds[] = {
 	{
-		.name  = "help",
-		.fn    = usbip_help,
-		.help  = NULL,
+		.name = "help",
+		.fn = usbip_help,
+		.help = NULL,
 		.usage = NULL
 	},
 	{
-		.name  = "version",
-		.fn    = usbip_version,
-		.help  = NULL,
+		.name = "version",
+		.fn = usbip_version,
+		.help = NULL,
 		.usage = NULL
 	},
 	{
-		.name  = "attach",
-		.fn    = usbip_attach,
-		.help  = "Attach a remote USB device",
+		.name = "attach",
+		.fn = usbip_attach,
+		.help = "Attach a remote USB device",
 		.usage = usbip_attach_usage
 	},
 	{
-		.name  = "detach",
-		.fn    = usbip_detach,
-		.help  = "Detach a remote USB device",
+		.name = "detach",
+		.fn = usbip_detach,
+		.help = "Detach a remote USB device",
 		.usage = usbip_detach_usage
 	},
 	{
-		.name  = "list",
-		.fn    = usbip_list,
-		.help  = "List exportable or local USB devices",
+		.name = "list",
+		.fn = usbip_list,
+		.help = "List exportable or local USB devices",
 		.usage = usbip_list_usage
 	},
 	{
-		.name  = "bind",
-		.fn    = usbip_bind,
-		.help  = "Bind device to usbip stub driver",
+		.name = "bind",
+		.fn = usbip_bind,
+		.help = "Bind device to usbip stub driver",
 		.usage = usbip_bind_usage
 	},
 	{
-		.name  = "unbind",
-		.fn    = usbip_unbind,
-		.help  = "Unbind device from usbip stub driver",
+		.name = "unbind",
+		.fn = usbip_unbind,
+		.help = "Unbind device from usbip stub driver",
 		.usage = usbip_unbind_usage
+	},
+	{
+		.name = "install",
+		.fn = usbip_install,
+		.help = "Install or reinstall driver for usbip",
+		.usage = usbip_install_usage
 	},
 #if 0 /* Not implemented yet */
 	{
