@@ -36,7 +36,7 @@ static struct usbip_install_devinfo_struct device_list[] = {
 		.hwid_inf_key = "USB/IP VHCI",
 		.devdesc_inf_section = "Strings",
 		.devdesc_inf_key = "DeviceDesc",
-		.dev_instance_path = "ROOT\\UNKNOWN\\0000"
+		.dev_instance_path = "ROOT\\USBIP\\0000"
 	}
 };
 
@@ -75,7 +75,6 @@ static BOOL usbip_install_get_class_id(GUID *class_guid, const char *inf_path)
 	if (!class_ok) {
 		return FALSE;
 	}
-
 	return TRUE;
 }
 
@@ -111,12 +110,12 @@ static BOOL usbip_install_get_hardware_id(char* buffer, DWORD buffer_size,
 		return FALSE;
 	}
 
-	char* separator_pos = strchr(device_info, ',');
+	char* separator_pos = strchr(buffer, ',');
 	if (separator_pos == NULL) {
 		return FALSE;
 	}
 	// End of the string
-	if (separator_pos - device_info >= BUFFER_SIZE) {
+	if (separator_pos - buffer >= BUFFER_SIZE) {
 		return FALSE;
 	}
 
@@ -137,7 +136,7 @@ static BOOL usbip_install_remove_device(HDEVINFO devinfoset,
 	const BOOL open_ok = SetupDiOpenDeviceInfo(devinfoset,
 		dev_data->dev_instance_path,
 		GetConsoleWindow(),
-		DIOD_CANCEL_REMOVE,
+		0,
 		&devinfo_data);
 	if (!open_ok) {
 		err("Cannot open DeviceInfo, code %u", GetLastError());
@@ -156,14 +155,14 @@ static BOOL usbip_install_remove_device(HDEVINFO devinfoset,
 
 static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 {
-	GUID class_guid;
-	HINF inf_handle;
+	GUID class_guid = { 0 };
+	HINF inf_handle = INVALID_HANDLE_VALUE;
 	char inf_file[BUFFER_SIZE] = { 0 };
 	char hw_id[BUFFER_SIZE] = { 0 };
 	char dev_decription[BUFFER_SIZE] = { 0 };
 
-	HDEVINFO devinfoset;
-	SP_DEVINFO_DATA devinfo_data;
+	HDEVINFO devinfoset = { 0 };
+	SP_DEVINFO_DATA devinfo_data = { 0 };
 	BOOL result_ok = TRUE;
 	DWORD last_error = 0;
 
