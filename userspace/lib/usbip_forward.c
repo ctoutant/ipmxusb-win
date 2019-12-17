@@ -378,7 +378,6 @@ static VOID CALLBACK
 read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 {
 	devbuf_t	*rbuff;
-
 	rbuff = (devbuf_t *)lpOverlapped->hEvent;
 	if (errcode == 0) {
 		rbuff->offp += nread;
@@ -443,7 +442,6 @@ static VOID CALLBACK
 write_completion(DWORD errcode, DWORD nwrite, LPOVERLAPPED lpOverlapped)
 {
 	devbuf_t	*wbuff, *rbuff;
-
 	if (errcode != 0)
 		return;
 	wbuff = (devbuf_t *)lpOverlapped->hEvent;
@@ -528,7 +526,6 @@ static BOOL
 read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 {
 	int	res;
-
 	if (rbuff->in_reading)
 		return TRUE;
 	if ((res = read_dev(rbuff, wbuff->swap_req)) < 0)
@@ -592,26 +589,66 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 
 		if (buff_src.invalid || buff_dst.invalid)
 			break;
+
 		if (buff_src.in_reading && buff_dst.in_reading)
-			SleepEx(500, TRUE);
+			SleepEx(200, TRUE);
 	}
 
 	if (interrupted) {
 		info("CTRL-C received\n");
 	}
 
+	CancelIoEx(hdev_dst, &buff_dst.ovs[0]);
+	CancelIoEx(hdev_src, &buff_src.ovs[0]);
+
+	DWORD lpNumberOfBytesRead = 0;
+
+	while (TRUE) {
+		info("result!");
+		BOOL result = GetOverlappedResult(hdev_src, &buff_src.ovs[0], &lpNumberOfBytesRead, FALSE);
+		if (result) {
+			info("SRC buff cleaned");
+			cleanup_devbuf(&buff_src);
+			break;
+		}
+		else {
+			info("DST buff cleaned");
+			if (GetLastError() == ERROR_IO_INCOMPLETE) {
+				SleepEx(1000, TRUE);
+				continue;
+			}
+			// Error, do not clean resources due to unknown status
+			break;
+		}
+	}
+
+	while (TRUE) {
+		info("result 2!");
+		BOOL result = GetOverlappedResult(hdev_dst, &buff_dst.ovs[0], &lpNumberOfBytesRead, FALSE);
+		if (result) {
+			info("DST buff cleaned");
+			cleanup_devbuf(&buff_dst);
+			break;
+		}
+		else {
+			info("DST buff cleaned");
+			if (GetLastError() == ERROR_IO_INCOMPLETE) {
+				SleepEx(1000, TRUE);
+				continue;
+			}
+			break;
+		}
+	}
+
 	/* Cancel an uncompleted asynchronous read */
 	/* If there's no asynchronous read pending, CancelIo seems to be blocked. */
 	/* in_reading should be checked as cleared to guarantee that an IO completion routine has been called */
-	while (buff_src.in_reading) {
-		CancelIoEx(hdev_src, &buff_src.ovs[0]);
-		SleepEx(500, TRUE);
+	/*if (inbound) {
+		closesocket((SOCKET)hdev_src);
 	}
-	while (buff_dst.in_reading) {
-		CancelIoEx(hdev_dst, &buff_dst.ovs[0]);
-		SleepEx(500, TRUE);
-	}
+	else {
+		closesocket((SOCKET)hdev_dst);
+	}*/
 
-	cleanup_devbuf(&buff_src);
-	cleanup_devbuf(&buff_dst);
+
 }
