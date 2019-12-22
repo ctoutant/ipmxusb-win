@@ -289,7 +289,7 @@ process_urb_res(struct urb_req *urbr, struct usbip_header *hdr)
 	case IOCTL_INTERNAL_USB_SUBMIT_URB:
 		return process_urb_res_submit(urbr->vpdo, irpstack->Parameters.Others.Argument1, hdr);
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-		return STATUS_SUCCESS;
+		return STATUS_NOT_SUPPORTED;
 	default:
 		DBGE(DBG_WRITE, "unhandled ioctl: %s\n", dbg_vhci_ioctl_code(ioctl_code));
 		return STATUS_INVALID_PARAMETER;

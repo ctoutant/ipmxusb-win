@@ -156,8 +156,6 @@ int main(int argc, char *argv[])
 		{ NULL,       0,                 NULL,  0 }
 	};
 
-	SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
-
 	char *cmd;
 	int opt;
 	int i, rc = -1;

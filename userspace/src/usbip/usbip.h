@@ -36,6 +36,6 @@ void usbip_detach_usage(void);
 void usbip_list_usage(void);
 void usbip_bind_usage(void);
 void usbip_unbind_usage(void);
-void usbip_install_usage(viod);
+void usbip_install_usage(void);
 
 #endif /* __USBIP_H */

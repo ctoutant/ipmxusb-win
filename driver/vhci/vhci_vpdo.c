@@ -523,8 +523,8 @@ GetUSBDIVersion(IN PVOID context, IN OUT PUSBD_VERSION_INFORMATION inf, IN OUT P
 	DBGI(DBG_GENERAL, "GetUSBDIVersion called\n");
 
 	*HcdCapabilities = 0;
-	inf->USBDI_Version=0x500; /* Windows XP */
-	inf->Supported_USB_Version=0x200; /* USB 2.0 */
+	inf->USBDI_Version=0x600; /* Windows XP and above */
+	inf->Supported_USB_Version=0x300; /* USB 2.0 */
 }
 
 static VOID
@@ -614,6 +614,7 @@ vhci_pnp_vpdo(PDEVICE_OBJECT devobj, PIRP Irp, PIO_STACK_LOCATION IrpStack, pusb
 		status = IoRegisterDeviceInterface(devobj, &GUID_DEVINTERFACE_USB_DEVICE, NULL, &vpdo->usb_dev_interface);
 		if (status == STATUS_SUCCESS)
 			IoSetDeviceInterfaceState(&vpdo->usb_dev_interface, TRUE);
+		DBGI(DBG_GENERAL, "Device start status: %i\n", status);
 		break;
 	case IRP_MN_STOP_DEVICE:
 		// Here we shut down the device and give up and unmap any resources
@@ -760,7 +761,6 @@ vhci_pnp_vpdo(PDEVICE_OBJECT devobj, PIRP Irp, PIO_STACK_LOCATION IrpStack, pusb
 		// (if the device supports locking). Any driver that returns success
 		// for this IRP must wait until the device has been ejected before
 		// completing the IRP.
-
 		vpdo->Present = FALSE;
 
 		status = STATUS_SUCCESS;
@@ -784,15 +784,15 @@ vhci_pnp_vpdo(PDEVICE_OBJECT devobj, PIRP Irp, PIO_STACK_LOCATION IrpStack, pusb
 	case IRP_MN_FILTER_RESOURCE_REQUIREMENTS:
 	case IRP_MN_QUERY_PNP_DEVICE_STATE:
 		/* not handled */
-		status = Irp->IoStatus.Status;
-		break;
+	//	status = STATUS_NOT_SUPPORTED; // Irp->IoStatus.Status;
+	//	break;
 	default:
 		DBGW(DBG_PNP, "not handled: %s\n", dbg_pnp_minor(IrpStack->MinorFunction));
 
 		// For PnP requests to the vpdo that we do not understand we should
 		// return the IRP WITHOUT setting the status or information fields.
 		// These fields may have already been set by a filter (eg acpi).
-		status = Irp->IoStatus.Status;
+		status = STATUS_INVALID_PARAMETER; //Irp->IoStatus.Status;
 		break;
 	}
 

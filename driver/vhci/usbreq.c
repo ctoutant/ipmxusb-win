@@ -131,6 +131,22 @@ remove_cancelled_urbr(pusbip_vpdo_dev_t vpdo, PIRP irp)
 	}
 }
 
+static NTSTATUS
+error_urb(PDEVICE_OBJECT devobj, PIRP irp, PVOID Context)
+{
+	UNREFERENCED_PARAMETER(Context);
+	pusbip_vpdo_dev_t	vpdo;
+
+	vpdo = (pusbip_vpdo_dev_t)devobj->DeviceExtension;
+	DBGI(DBG_GENERAL, "irp Error supplied: %p\n", irp);
+
+	remove_cancelled_urbr(vpdo, irp);
+
+	irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+	IoCompleteRequest(irp, IO_NO_INCREMENT);
+	return STATUS_SUCCESS;
+}
+
 static void
 cancel_urbr(PDEVICE_OBJECT devobj, PIRP irp)
 {
@@ -185,6 +201,7 @@ submit_urbr(pusbip_vpdo_dev_t vpdo, struct urb_req *urbr)
 	if (vpdo->urbr_sent_partial || vpdo->pending_read_irp == NULL) {
 		if (urbr->irp != NULL) {
 			IoSetCancelRoutine(urbr->irp, cancel_urbr);
+			IoSetCompletionRoutine(urbr->irp, error_urb, NULL, FALSE, TRUE, FALSE);
 			IoMarkIrpPending(urbr->irp);
 		}
 		InsertTailList(&vpdo->head_urbr_pending, &urbr->list_state);

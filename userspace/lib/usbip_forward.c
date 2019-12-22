@@ -28,7 +28,10 @@ typedef struct _devbuf {
 	DWORD	bufmaxp, bufmaxc;
 	struct _devbuf	*peer;
 	OVERLAPPED	ovs[2];
+	HANDLE semaphore;
 } devbuf_t;
+
+#define DEBUG_PDU
 
 #ifdef DEBUG_PDU
 #undef USING_STDOUT
@@ -359,6 +362,7 @@ init_devbuf(devbuf_t *buff, const char *desc, BOOL is_req, BOOL swap_req, HANDLE
 	buff->bufmaxp = 1024;
 	buff->bufmaxc = 0;
 	buff->hdev = hdev;
+	buff->semaphore = CreateSemaphore(NULL, 0, 1, NULL);
 	if (!setup_rw_overlapped(buff)) {
 		free(buff->bufp);
 		return FALSE;
@@ -372,12 +376,14 @@ cleanup_devbuf(devbuf_t *buff)
 	free(buff->bufp);
 	if (buff->bufp != buff->bufc)
 		free(buff->bufc);
+	if (buff->semaphore != INVALID_HANDLE_VALUE)
+		CloseHandle(buff->semaphore);
 }
 
 static VOID CALLBACK
 read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 {
-	devbuf_t	*rbuff;
+	devbuf_t	*rbuff, *wbuff;
 	rbuff = (devbuf_t *)lpOverlapped->hEvent;
 	if (errcode == 0) {
 		rbuff->offp += nread;
@@ -385,6 +391,9 @@ read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 			rbuff->invalid = TRUE;
 	}
 	rbuff->in_reading = FALSE;
+	wbuff = rbuff->peer;
+	ReleaseSemaphore(rbuff->semaphore, 1, NULL);
+	ReleaseSemaphore(wbuff->semaphore, 1, NULL);
 }
 
 static BOOL
@@ -536,7 +545,7 @@ read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 	return write_devbuf(wbuff, rbuff);
 }
 
-static volatile BOOL	interrupted;
+static volatile BOOL interrupted;
 
 static void
 signalhandler(int signal)
@@ -589,9 +598,7 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 
 		if (buff_src.invalid || buff_dst.invalid)
 			break;
-
-		if (buff_src.in_reading && buff_dst.in_reading)
-			SleepEx(200, TRUE);
+		WaitForSingleObjectEx(buff_dst.semaphore, 10, TRUE);
 	}
 
 	if (interrupted) {

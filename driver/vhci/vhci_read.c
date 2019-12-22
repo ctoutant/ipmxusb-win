@@ -506,6 +506,55 @@ store_urb_iso(PIRP irp, PURB urb, struct urb_req *urbr)
 }
 
 static NTSTATUS
+store_urb_control_transfer(PIRP irp, PURB urb, struct urb_req* urbr)
+{
+	DBGI(DBG_READ, "ControlEx timeout: %i", urb->UrbControlTransferEx.Timeout);
+	struct _URB_CONTROL_TRANSFER_EX* urb_control_ex = &urb->UrbControlTransferEx;
+	struct usbip_header* hdr;
+	int	in, type;
+
+	hdr = get_usbip_hdr_from_read_irp(irp);
+	if (hdr == NULL) {
+		DBGE(DBG_READ, "Cannot get usbip header\n");
+		return STATUS_BUFFER_TOO_SMALL;
+	}
+
+	if (urb_control_ex->PipeHandle) {
+		in = PIPE2DIRECT(urb_control_ex->PipeHandle);
+		type = PIPE2TYPE(urb_control_ex->PipeHandle);
+	}
+	else {
+		DBGI(DBG_READ, "Setting explicitly in and type\n");
+		in = USBIP_DIR_IN;
+		type = USB_ENDPOINT_TYPE_CONTROL;
+	}
+
+	if (type != USB_ENDPOINT_TYPE_CONTROL) {
+		DBGE(DBG_READ, "Not a transfer pipe\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid,
+		in, urb_control_ex->PipeHandle, urb_control_ex->TransferFlags | USBD_SHORT_TRANSFER_OK,
+		urb_control_ex->TransferBufferLength);
+	RtlCopyMemory(hdr->u.cmd_submit.setup, urb_control_ex->SetupPacket, 8);
+
+	/*if (!in) {
+		if (get_read_payload_length(irp) >= urb_control_ex->TransferBufferLength) {
+			PVOID	buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
+			if (buf == NULL)
+				return STATUS_INSUFFICIENT_RESOURCES;
+			RtlCopyMemory(hdr + 1, buf, urb_control_ex->TransferBufferLength);
+		}
+		else {
+			urbr->vpdo->len_sent_partial = sizeof(struct usbip_header);
+		}
+	}*/
+
+	return STATUS_SUCCESS;
+}
+
+static NTSTATUS
 store_urbr_submit(PIRP irp, struct urb_req *urbr)
 {
 	PURB	urb;
@@ -557,6 +606,12 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 		break;
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 		status = store_urb_reset_pipe(irp, urb, urbr);
+		break;
+	case URB_FUNCTION_GET_MS_FEATURE_DESCRIPTOR:
+		status = STATUS_NOT_SUPPORTED;
+		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer(irp, urb, urbr);
 		break;
 	default:
 		irp->IoStatus.Information = 0;

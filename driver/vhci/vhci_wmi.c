@@ -62,6 +62,7 @@ vhci_system_control(__in  PDEVICE_OBJECT devobj, __in PIRP Irp)
 		Irp->IoStatus.Status = status = STATUS_NO_SUCH_DEVICE ;
 		IoCompleteRequest (Irp, IO_NO_INCREMENT);
 		dec_io_vhub(vhub);
+		DBGI(DBG_WMI, "vhci: Device deleted %i\n", status);
 		return status;
 	}
 
@@ -91,6 +92,8 @@ vhci_system_control(__in  PDEVICE_OBJECT devobj, __in PIRP Irp)
 	}
 
 	dec_io_vhub(vhub);
+
+	DBGI(DBG_WMI, "vhci: Status %i\n", status);
 
 	return status;
 }
