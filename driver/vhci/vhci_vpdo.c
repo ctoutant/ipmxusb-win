@@ -784,15 +784,15 @@ vhci_pnp_vpdo(PDEVICE_OBJECT devobj, PIRP Irp, PIO_STACK_LOCATION IrpStack, pusb
 	case IRP_MN_FILTER_RESOURCE_REQUIREMENTS:
 	case IRP_MN_QUERY_PNP_DEVICE_STATE:
 		/* not handled */
-	//	status = STATUS_NOT_SUPPORTED; // Irp->IoStatus.Status;
-	//	break;
+		status = Irp->IoStatus.Status;
+		break;
 	default:
 		DBGW(DBG_PNP, "not handled: %s\n", dbg_pnp_minor(IrpStack->MinorFunction));
 
 		// For PnP requests to the vpdo that we do not understand we should
 		// return the IRP WITHOUT setting the status or information fields.
 		// These fields may have already been set by a filter (eg acpi).
-		status = STATUS_INVALID_PARAMETER; //Irp->IoStatus.Status;
+		status = Irp->IoStatus.Status;
 		break;
 	}
 

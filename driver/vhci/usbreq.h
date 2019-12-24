@@ -31,5 +31,6 @@ submit_urbr(pusbip_vpdo_dev_t vpdo, struct urb_req *urbr);
 
 extern struct urb_req *
 create_urbr(pusbip_vpdo_dev_t vpdo, PIRP irp, unsigned long seq_num_unlink);
+
 extern void
 free_urbr(struct urb_req *urbr);

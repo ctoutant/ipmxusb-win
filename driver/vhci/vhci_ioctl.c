@@ -50,6 +50,12 @@ submit_urbr_irp(pusbip_vpdo_dev_t vpdo, PIRP irp)
 	return status;
 }
 
+extern struct urb_req*
+find_pending_urbr(pusbip_vpdo_dev_t vpdo);
+
+struct urb_req*
+find_sent_urbr(pusbip_vpdo_dev_t vpdo, struct usbip_header* hdr);
+
 static NTSTATUS
 process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 {
@@ -61,10 +67,9 @@ process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	DBGI(DBG_IOCTL, "process_irp_urb_req: function: %s\n", dbg_urbfunc(urb->UrbHeader.Function));
 
 	switch (urb->UrbHeader.Function) {
-	case URB_FUNCTION_ABORT_PIPE:
-		return process_urb_abort_pipe(vpdo, urb);
 	case URB_FUNCTION_GET_CURRENT_FRAME_NUMBER:
 		return process_urb_get_frame(vpdo, urb);
+	case URB_FUNCTION_ABORT_PIPE:
 	case URB_FUNCTION_SELECT_CONFIGURATION:
 	case URB_FUNCTION_ISOCH_TRANSFER:
 	case URB_FUNCTION_CLASS_DEVICE:
@@ -139,7 +144,7 @@ vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 		break;
 	case IOCTL_INTERNAL_USB_GET_PORT_STATUS:
 		status = STATUS_SUCCESS;
-		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_ENABLED | USBD_PORT_CONNECTED;
+		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_CONNECTED | USBD_PORT_ENABLED;
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
 		status = submit_urbr_irp(vpdo, Irp);

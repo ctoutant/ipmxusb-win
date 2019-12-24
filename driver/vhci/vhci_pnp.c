@@ -665,7 +665,7 @@ complete_pending_irp(pusbip_vpdo_dev_t vpdo)
 
 			KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
 			DBGI(DBG_PNP, "sleep 50ms, let pnp manager send irp");
-			interval.QuadPart = -500000;
+			interval.QuadPart = -50000;
 			KeDelayExecutionThread(KernelMode, FALSE, &interval);
 			KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
 		} else {

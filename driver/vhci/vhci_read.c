@@ -386,8 +386,10 @@ store_urb_bulk(PIRP irp, PURB urb, struct urb_req *urbr)
 	if (!in) {
 		if (get_read_payload_length(irp) >= urb_bi->TransferBufferLength) {
 			PVOID	buf = get_buf(urb_bi->TransferBuffer, urb_bi->TransferBufferMDL);
-			if (buf == NULL)
+			if (buf == NULL) {
+				DBGE(DBG_READ, "Error, STATUS_INSUFFICIENT_RESOURCES\n");
 				return STATUS_INSUFFICIENT_RESOURCES;
+			}
 			RtlCopyMemory(hdr + 1, buf, urb_bi->TransferBufferLength);
 		}
 		else {
@@ -505,13 +507,39 @@ store_urb_iso(PIRP irp, PURB urb, struct urb_req *urbr)
 	return STATUS_SUCCESS;
 }
 
+
+static NTSTATUS
+store_urb_control_transfer_partial(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
+{
+	struct _URB_CONTROL_TRANSFER_EX* urb_control_ex = &urb->UrbControlTransferEx;
+	PVOID	dst;
+	char* buf;
+
+	dst = get_read_irp_data(irp, urb_control_ex->TransferBufferLength);
+	if (dst == NULL)
+		return STATUS_BUFFER_TOO_SMALL;
+
+	/*
+	 * reading from TransferBuffer or TransferBufferMDL,
+	 * whichever of them is not null
+	 */
+	buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
+	if (buf == NULL)
+		return STATUS_INSUFFICIENT_RESOURCES;
+	RtlCopyMemory(dst, buf, urb_control_ex->TransferBufferLength);
+	irp->IoStatus.Information = urb_control_ex->TransferBufferLength;
+	vpdo->len_sent_partial = 0;
+
+	return STATUS_SUCCESS;
+}
+
 static NTSTATUS
 store_urb_control_transfer(PIRP irp, PURB urb, struct urb_req* urbr)
 {
 	DBGI(DBG_READ, "ControlEx timeout: %i", urb->UrbControlTransferEx.Timeout);
 	struct _URB_CONTROL_TRANSFER_EX* urb_control_ex = &urb->UrbControlTransferEx;
 	struct usbip_header* hdr;
-	int	in, type;
+	int	in = urb_control_ex->TransferFlags & USBD_TRANSFER_DIRECTION_IN ? 1 : 0;
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
@@ -519,7 +547,7 @@ store_urb_control_transfer(PIRP irp, PURB urb, struct urb_req* urbr)
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
-	if (urb_control_ex->PipeHandle) {
+/*	if (urb_control_ex->PipeHandle) {
 		in = PIPE2DIRECT(urb_control_ex->PipeHandle);
 		type = PIPE2TYPE(urb_control_ex->PipeHandle);
 	}
@@ -532,24 +560,54 @@ store_urb_control_transfer(PIRP irp, PURB urb, struct urb_req* urbr)
 	if (type != USB_ENDPOINT_TYPE_CONTROL) {
 		DBGE(DBG_READ, "Not a transfer pipe\n");
 		return STATUS_INVALID_PARAMETER;
+	}*/
+	if (!urb_control_ex->PipeHandle) {
+		DBGI(DBG_READ, "Pipe handle empty\n");
+	}
+	if (urb_control_ex->TransferFlags & USBD_DEFAULT_PIPE_TRANSFER) {
+		DBGI(DBG_READ, "Use default pipe\n");
+	}
+	if (urb_control_ex->TransferFlags & USBD_TRANSFER_DIRECTION_IN) {
+		DBGI(DBG_READ, "Control ex: USBD_TRANSFER_DIRECTION_IN\n");
+	}
+	else {
+		DBGI(DBG_READ, "Control ex: USBD_TRANSFER_DIRECTION_OUT\n");
+	}
+	if (urb_control_ex->TransferFlags & USBD_SHORT_TRANSFER_OK) {
+		DBGI(DBG_READ, "Control ex: Short transfer OK\n");
 	}
 
-	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid,
-		in, urb_control_ex->PipeHandle, urb_control_ex->TransferFlags | USBD_SHORT_TRANSFER_OK,
-		urb_control_ex->TransferBufferLength);
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, 0,
+		urb_control_ex->TransferFlags | USBD_SHORT_TRANSFER_OK, urb_control_ex->TransferBufferLength);
 	RtlCopyMemory(hdr->u.cmd_submit.setup, urb_control_ex->SetupPacket, 8);
 
-	/*if (!in) {
+	DBGI(DBG_READ, "  setup: %02hhx_%02hhx_%02hhx_%02hhx_%02hhx_%02hhx_%02hhx_%02hhx\n",
+		hdr->u.cmd_submit.setup[0], hdr->u.cmd_submit.setup[1], hdr->u.cmd_submit.setup[2],
+		hdr->u.cmd_submit.setup[3], hdr->u.cmd_submit.setup[4], hdr->u.cmd_submit.setup[5],
+		hdr->u.cmd_submit.setup[6], hdr->u.cmd_submit.setup[7]);
+	DBGI(DBG_READ, "  flags:%x,len:%x,sf:%x,#p:%x,intv:%x\n",
+		hdr->u.cmd_submit.transfer_flags,
+		hdr->u.cmd_submit.transfer_buffer_length,
+		hdr->u.cmd_submit.start_frame,
+		hdr->u.cmd_submit.number_of_packets,
+		hdr->u.cmd_submit.interval);
+
+	irp->IoStatus.Information = sizeof(struct usbip_header);
+
+	DBGI(DBG_READ, "Buffer length: %i\n", urb_control_ex->TransferBufferLength);
+
+	if (!in) {
 		if (get_read_payload_length(irp) >= urb_control_ex->TransferBufferLength) {
-			PVOID	buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
+			PVOID buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
 			if (buf == NULL)
 				return STATUS_INSUFFICIENT_RESOURCES;
 			RtlCopyMemory(hdr + 1, buf, urb_control_ex->TransferBufferLength);
 		}
 		else {
+			DBGI(DBG_READ, "TransferEx - Partial!\n");
 			urbr->vpdo->len_sent_partial = sizeof(struct usbip_header);
 		}
-	}*/
+	}
 
 	return STATUS_SUCCESS;
 }
@@ -561,6 +619,9 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 	PIO_STACK_LOCATION	irpstack;
 	USHORT		code_func;
 	NTSTATUS	status;
+	KIRQL		oldirql;
+	PLIST_ENTRY	le;
+	struct urb_req* urbr_local;
 
 	DBGI(DBG_READ, "store_urbr_submit: urbr: %s\n", dbg_urbr(urbr));
 
@@ -613,6 +674,23 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 	case URB_FUNCTION_CONTROL_TRANSFER_EX:
 		status = store_urb_control_transfer(irp, urb, urbr);
 		break;
+	case URB_FUNCTION_ABORT_PIPE:
+		if (urb->UrbPipeRequest.PipeHandle) {
+			KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);
+			for (le = urbr->vpdo->head_urbr.Flink; le != &urbr->vpdo->head_urbr; le = le->Flink) {
+				urbr_local = CONTAINING_RECORD(le, struct urb_req, list_state);
+				if (urbr_local == urbr) {
+					continue;
+				}
+				urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
+				urbr->irp->IoStatus.Information = 0;
+				IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
+			}
+			KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+			return STATUS_SUCCESS;
+		}
+		if (urb->UrbPipeRequest.PipeHandle == NULL)
+			return STATUS_SUCCESS;
 	default:
 		irp->IoStatus.Information = 0;
 		DBGE(DBG_READ, "unhandled urb function: %s\n", dbg_urbfunc(code_func));
@@ -653,12 +731,16 @@ store_urbr_partial(PIRP irp, struct urb_req *urbr)
 	case URB_FUNCTION_VENDOR_ENDPOINT:
 		status = store_urb_class_vendor_partial(urbr->vpdo, irp, urb);
 		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer_partial(urbr->vpdo, irp, urb);
+		break;
 	default:
 		irp->IoStatus.Information = 0;
 		DBGE(DBG_READ, "store_urbr_partial: unexpected partial urbr: %s\n", dbg_urbfunc(code_func));
 		status = STATUS_INVALID_PARAMETER;
 		break;
 	}
+	DBGI(DBG_READ, "store_urbr_partial: status: %i\n", status);
 
 	return status;
 }
@@ -698,7 +780,7 @@ store_urbr(PIRP irp, struct urb_req *urbr)
 		status = store_urbr_submit(irp, urbr);
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-		status = store_urb_reset_dev(irp, urbr);
+		status = STATUS_NOT_SUPPORTED;//store_urb_reset_dev(irp, urbr);
 		break;
 	default:
 		DBGW(DBG_READ, "unhandled ioctl: %s\n", dbg_vhci_ioctl_code(ioctl_code));

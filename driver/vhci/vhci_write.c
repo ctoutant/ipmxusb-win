@@ -136,6 +136,19 @@ store_urb_control(PURB urb, struct usbip_header *hdr)
 }
 
 static NTSTATUS
+store_urb_control_transfer_ex(PURB urb, struct usbip_header* hdr)
+{
+	struct _URB_CONTROL_TRANSFER_EX* urb_desc = &urb->UrbControlTransferEx;
+	NTSTATUS	status;
+
+	status = copy_to_transfer_buffer(urb_desc->TransferBuffer, urb_desc->TransferBufferMDL,
+		urb_desc->TransferBufferLength, hdr + 1, hdr->u.ret_submit.actual_length);
+	if (status == STATUS_SUCCESS)
+		urb_desc->TransferBufferLength = hdr->u.ret_submit.actual_length;
+	return status;
+}
+
+static NTSTATUS
 store_urb_vendor_or_class(PURB urb, struct usbip_header *hdr)
 {
 	struct _URB_CONTROL_VENDOR_OR_CLASS_REQUEST	*urb_vendor_class = &urb->UrbControlVendorClassRequest;
@@ -228,6 +241,9 @@ store_urb_data(PURB urb, struct usbip_header *hdr)
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 		status = STATUS_SUCCESS;
 		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer_ex(urb, hdr);
+		break;
 	default:
 		DBGE(DBG_WRITE, "not supported func: %s\n", dbg_urbfunc(urb->UrbHeader.Function));
 		status = STATUS_INVALID_PARAMETER;
@@ -255,6 +271,7 @@ process_urb_res_submit(pusbip_vpdo_dev_t vpdo, PURB urb, struct usbip_header *hd
 		}
 		return STATUS_UNSUCCESSFUL;
 	}
+	DBGI(DBG_WRITE, "URB_FUNCTION: %s\n", dbg_urbfunc(urb->UrbHeader.Function));
 	status = store_urb_data(urb, hdr);
 	if (status == STATUS_SUCCESS) {
 		switch (urb->UrbHeader.Function) {
@@ -289,7 +306,7 @@ process_urb_res(struct urb_req *urbr, struct usbip_header *hdr)
 	case IOCTL_INTERNAL_USB_SUBMIT_URB:
 		return process_urb_res_submit(urbr->vpdo, irpstack->Parameters.Others.Argument1, hdr);
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-		return STATUS_NOT_SUPPORTED;
+		return STATUS_SUCCESS;
 	default:
 		DBGE(DBG_WRITE, "unhandled ioctl: %s\n", dbg_vhci_ioctl_code(ioctl_code));
 		return STATUS_INVALID_PARAMETER;
