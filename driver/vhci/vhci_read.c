@@ -620,8 +620,11 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 	USHORT		code_func;
 	NTSTATUS	status;
 	KIRQL		oldirql;
-	PLIST_ENTRY	le;
+	PLIST_ENTRY	le, le_tmp;
 	struct urb_req* urbr_local;
+	//PUSBD_PIPE_INFORMATION pipe_inf;
+	USBD_PIPE_HANDLE pipe_handle;
+	unsigned int i;
 
 	DBGI(DBG_READ, "store_urbr_submit: urbr: %s\n", dbg_urbr(urbr));
 
@@ -675,22 +678,44 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 		status = store_urb_control_transfer(irp, urb, urbr);
 		break;
 	case URB_FUNCTION_ABORT_PIPE:
-		if (urb->UrbPipeRequest.PipeHandle) {
+		//if (urb->UrbPipeRequest.PipeHandle) {
+		pipe_handle = urb->UrbPipeRequest.PipeHandle;
 			KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);
-			for (le = urbr->vpdo->head_urbr.Flink; le != &urbr->vpdo->head_urbr; le = le->Flink) {
+			for (le = urbr->vpdo->head_urbr_pending.Flink; le != &urbr->vpdo->head_urbr_pending;) {
 				urbr_local = CONTAINING_RECORD(le, struct urb_req, list_state);
-				if (urbr_local == urbr) {
+			/*	if (urbr_local == urbr) {
+					le = le->Flink;
 					continue;
 				}
-				urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
-				urbr->irp->IoStatus.Information = 0;
+				if (!(IsListEmpty(&urbr_local->list_all) && IsListEmpty(&urbr_local->list_state))) {
+					le = le->Flink;
+					continue;
+				}*/
+			//	urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
+			//	set_pipe(pipe_inf, urbr_local->vpdo->dsc_conf, urbr_local->vpdo->speed);
+			//	if (pipe_inf->PipeHandle != urb->UrbPipeRequest.PipeHandle)
+			//		continue;
+				for (i = 0; i < urbr_local->vpdo->dsc_conf->bNumInterfaces; i++) {
+					last_info_intf = NEXT_USBD_INTERFACE_INFO(last_info_intf);
+					/* urb_selc may have less info_intf than bNumInterfaces in conf desc */
+					if ((PVOID)last_info_intf >= end_urb_selc)
+						break;
+				}
+				setup_intf();
+
 				IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
+				le_tmp = le->Flink;
+				RemoveEntryListInit(&urbr_local->list_state);
+				RemoveEntryListInit(&urbr_local->list_all);
+				le = le_tmp;
+				free_urbr(urbr_local);
 			}
 			KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+			irp->IoStatus.Information = 0;
 			return STATUS_SUCCESS;
-		}
-		if (urb->UrbPipeRequest.PipeHandle == NULL)
-			return STATUS_SUCCESS;
+		//}
+		//if (urb->UrbPipeRequest.PipeHandle == NULL)
+	//		return STATUS_SUCCESS;
 	default:
 		irp->IoStatus.Information = 0;
 		DBGE(DBG_READ, "unhandled urb function: %s\n", dbg_urbfunc(code_func));
@@ -798,6 +823,8 @@ process_read_irp(pusbip_vpdo_dev_t vpdo, PIRP read_irp)
 	struct urb_req	*urbr;
 	KIRQL	oldirql;
 	NTSTATUS status;
+
+	DBGI(DBG_GENERAL | DBG_READ, "process_read_irp: Enter\n");
 
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
 	if (vpdo->pending_read_irp) {

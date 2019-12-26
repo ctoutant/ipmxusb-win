@@ -4,9 +4,6 @@
 #include "usbip_vhci_api.h"
 #include "usbip_proto.h"
 
-#define NEXT_USBD_INTERFACE_INFO(info_intf)	(USBD_INTERFACE_INFORMATION *)((PUINT8)(info_intf + 1) - \
-	(1 * sizeof(USBD_PIPE_INFORMATION)) + (info_intf->NumberOfPipes * sizeof(USBD_PIPE_INFORMATION)));
-
 #define MAKE_PIPE(ep, type, interval) ((USBD_PIPE_HANDLE)((ep) | ((interval) << 8) | ((type) << 16)))
 #define TO_INTF_HANDLE(intf_num, altsetting)	((USBD_INTERFACE_HANDLE)((intf_num << 8) + altsetting))
 #define TO_INTF_NUM(handle)		(UCHAR)(((UINT_PTR)(handle)) >> 8)
@@ -75,7 +72,7 @@ setup_endpoints(USBD_INTERFACE_INFORMATION *intf, PUSB_CONFIGURATION_DESCRIPTOR 
 	return TRUE;
 }
 
-static NTSTATUS
+NTSTATUS
 setup_intf(USBD_INTERFACE_INFORMATION *intf, PUSB_CONFIGURATION_DESCRIPTOR dsc_conf, UCHAR speed)
 {
 	PUSB_INTERFACE_DESCRIPTOR	dsc_intf;

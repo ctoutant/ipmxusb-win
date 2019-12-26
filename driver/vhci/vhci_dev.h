@@ -139,7 +139,12 @@ typedef struct
 	PFILE_OBJECT	fo;
 	unsigned int	devid;
 	unsigned long	seq_num;
+
+	// Standard confifuration descriptor
 	PUSB_CONFIGURATION_DESCRIPTOR	dsc_conf;
+	// Interface descriptor for given  dsc_conf
+	PUSBD_INTERFACE_INFORMATION	int_dsc;
+
 	KTIMER	timer;
 	KDPC	dpc;
 	UNICODE_STRING	usb_dev_interface;

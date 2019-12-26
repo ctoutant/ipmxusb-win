@@ -31,8 +31,6 @@ typedef struct _devbuf {
 	HANDLE semaphore;
 } devbuf_t;
 
-#define DEBUG_PDU
-
 #ifdef DEBUG_PDU
 #undef USING_STDOUT
 
@@ -509,6 +507,7 @@ read_dev(devbuf_t *rbuff, BOOL swap_req_write)
 
 		if (!read_devbuf(rbuff, nmore))
 			return -1;
+		info("read dev return 0\n");
 		return 0;
 	}
 
@@ -539,8 +538,9 @@ read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 		return TRUE;
 	if ((res = read_dev(rbuff, wbuff->swap_req)) < 0)
 		return FALSE;
-	if (res == 0)
+	if (res == 0) {
 		return TRUE;
+	}
 
 	return write_devbuf(wbuff, rbuff);
 }
@@ -591,14 +591,20 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 	signal(SIGINT, signalhandler);
 
 	while (!interrupted) {
-		if (!read_write_dev(&buff_src, &buff_dst))
+		if (!read_write_dev(&buff_src, &buff_dst)) {
+			info("read_write_dev src --> dst\n");
 			break;
-		if (!read_write_dev(&buff_dst, &buff_src))
+		}
+		if (!read_write_dev(&buff_dst, &buff_src)) {
+			info("read_write_dev dst --> src\n");
 			break;
+		}
 
-		if (buff_src.invalid || buff_dst.invalid)
+		if (buff_src.invalid || buff_dst.invalid) {
+			info("one of src|dst is invalid\n");
 			break;
-		WaitForSingleObjectEx(buff_dst.semaphore, 10, TRUE);
+		}
+		WaitForSingleObjectEx(buff_dst.semaphore, 500, TRUE);
 	}
 
 	if (interrupted) {

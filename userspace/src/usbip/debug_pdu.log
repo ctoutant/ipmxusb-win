@@ -1,0 +1,148 @@
+DUMP: CMD_SUBMIT,seq:1,devid:10003,dir:in,ep:0
+  flags:0,len:12,sf:0,#p:0,intv:0
+  setup: 8006000100001200
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:2,devid:10003,dir:out,ep:0
+  seq:1
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:1,devid:0,dir:out,ep:0
+  st:0,al:18,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:1,devid:10003,dir:in,ep:0
+  flags:0,len:12,sf:0,#p:0,intv:0
+  setup: 8006000100001200
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:2,devid:10003,dir:out,ep:0
+  seq:1
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:1,devid:0,dir:out,ep:0
+  st:0,al:18,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:1,devid:10003,dir:in,ep:0
+  flags:0,len:12,sf:0,#p:0,intv:0
+  setup: 8006000100001200
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:1,devid:0,dir:out,ep:0
+  st:0,al:18,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:2,devid:10003,dir:in,ep:0
+  flags:0,len:9,sf:0,#p:0,intv:0
+  setup: 8006000200000900
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:2,devid:0,dir:out,ep:0
+  st:0,al:9,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:3,devid:10003,dir:out,ep:0
+  seq:2
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:4,devid:10003,dir:in,ep:0
+  flags:0,len:9,sf:0,#p:0,intv:0
+  setup: 8006000200000900
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:5,devid:10003,dir:out,ep:0
+  seq:4
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:4,devid:0,dir:out,ep:0
+  st:0,al:9,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:6,devid:10003,dir:in,ep:0
+  flags:0,len:9,sf:0,#p:0,intv:0
+  setup: 8006000200000900
+DUMP DONE-------
+DUMP: RET_UNLINK,seq:3,devid:0,dir:out,ep:0
+ st:0
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:7,devid:10003,dir:out,ep:0
+  seq:6
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:1,devid:10003,dir:in,ep:0
+  flags:0,len:12,sf:0,#p:0,intv:0
+  setup: 8006000100001200
+DUMP DONE-------
+DUMP: CMD_UNLINK,seq:2,devid:10003,dir:out,ep:0
+  seq:1
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:1,devid:10003,dir:in,ep:0
+  flags:0,len:12,sf:0,#p:0,intv:0
+  setup: 8006000100001200
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:1,devid:0,dir:out,ep:0
+  st:0,al:18,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:2,devid:10003,dir:in,ep:0
+  flags:0,len:9,sf:0,#p:0,intv:0
+  setup: 8006000200000900
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:2,devid:0,dir:out,ep:0
+  st:0,al:9,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:3,devid:10003,dir:in,ep:0
+  flags:0,len:54,sf:0,#p:0,intv:0
+  setup: 8006000200005400
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:3,devid:0,dir:out,ep:0
+  st:0,al:84,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:4,devid:10003,dir:out,ep:0
+  flags:1,len:0,sf:0,#p:0,intv:0
+  setup: 0009010000000000
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:4,devid:0,dir:out,ep:0
+  st:0,al:0,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:5,devid:10003,dir:in,ep:0
+  flags:0,len:4,sf:0,#p:0,intv:0
+  setup: 8006020309040400
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:5,devid:0,dir:out,ep:0
+  st:0,al:4,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:6,devid:10003,dir:in,ep:0
+  flags:0,len:1a,sf:0,#p:0,intv:0
+  setup: 8006020309041a00
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:6,devid:0,dir:out,ep:0
+  st:0,al:26,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:7,devid:10003,dir:in,ep:0
+  flags:0,len:4,sf:0,#p:0,intv:0
+  setup: 8006020309040400
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:7,devid:0,dir:out,ep:0
+  st:0,al:4,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:8,devid:10003,dir:in,ep:0
+  flags:0,len:1a,sf:0,#p:0,intv:0
+  setup: 8006020309041a00
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:8,devid:0,dir:out,ep:0
+  st:0,al:26,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:9,devid:10003,dir:in,ep:0
+  flags:0,len:4,sf:0,#p:0,intv:0
+  setup: 8006020309040400
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:9,devid:0,dir:out,ep:0
+  st:0,al:4,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:10,devid:10003,dir:in,ep:0
+  flags:0,len:1a,sf:0,#p:0,intv:0
+  setup: 8006020309041a00
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:10,devid:0,dir:out,ep:0
+  st:0,al:26,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:11,devid:10003,dir:out,ep:0
+  flags:0,len:0,sf:0,#p:0,intv:0
+  setup: 210a000000000000
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:11,devid:0,dir:out,ep:0
+  st:0,al:0,sf:0,#p:0,ec:0
+DUMP DONE-------
+DUMP: CMD_SUBMIT,seq:12,devid:10003,dir:in,ep:0
+  flags:0,len:7b,sf:0,#p:0,intv:0
+  setup: 8106002201e17b00
+DUMP DONE-------
+DUMP: RET_SUBMIT,seq:12,devid:0,dir:out,ep:0
+  st:-32,al:0,sf:0,#p:0,ec:0
+DUMP DONE-------
