@@ -101,15 +101,20 @@ submit_urbr_unlink(pusbip_vpdo_dev_t vpdo, unsigned long seq_num_unlink)
 	}
 }
 
-static void
+void
 remove_cancelled_urbr(pusbip_vpdo_dev_t vpdo, PIRP irp)
 {
 	struct urb_req	*urbr;
 	KIRQL	oldirql = irp->CancelIrql;
 
+	DBGI(DBG_GENERAL, "irp will be cancelled, KeAcquireSpinLockAtDpcLevel\n");
+
 	KeAcquireSpinLockAtDpcLevel(&vpdo->lock_urbr);
 
+	DBGI(DBG_GENERAL, "irp will be cancelled, KeAcquireSpinLockAtDpcLevel passed\n");
+
 	urbr = find_urbr_with_irp(vpdo, irp);
+	DBGI(DBG_GENERAL, "irp will be cancelled, find_urbr_with_irp passed\n");
 	if (urbr != NULL) {
 		RemoveEntryListInit(&urbr->list_state);
 		RemoveEntryListInit(&urbr->list_all);
@@ -122,10 +127,13 @@ remove_cancelled_urbr(pusbip_vpdo_dev_t vpdo, PIRP irp)
 		DBGW(DBG_URB, "no matching urbr\n");
 	}
 
-	KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+	KeReleaseSpinLockForDpc(&vpdo->lock_urbr, oldirql); // KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+
+	DBGI(DBG_GENERAL, "irp will be cancelled, KeReleaseSpinLock passed\n");
 
 	if (urbr != NULL) {
 		submit_urbr_unlink(vpdo, urbr->seq_num);
+		DBGI(DBG_GENERAL, "irp will be cancelled, submit_urbr_unlink passed\n");
 
 		DBGI(DBG_GENERAL, "cancelled urb destroyed: %s\n", dbg_urbr(urbr));
 		free_urbr(urbr);
@@ -141,6 +149,7 @@ cancel_urbr(PDEVICE_OBJECT devobj, PIRP irp)
 	DBGI(DBG_GENERAL, "irp will be cancelled: %p\n", irp);
 
 	remove_cancelled_urbr(vpdo, irp);
+//	DBGI(DBG_GENERAL, "irp will be cancelled, cancell routine proceeed: %p\n", irp);
 
 	irp->IoStatus.Status = STATUS_CANCELLED;
 	IoCompleteRequest(irp, IO_NO_INCREMENT);

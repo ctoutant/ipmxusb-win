@@ -96,9 +96,10 @@ copy_interface_information(pusbip_vpdo_dev_t vpdo, struct _URB_SELECT_CONFIGURAT
 	}
 
 	RtlCopyMemory(int_dsc, &urb_selc->Interface, len);
-	if (vpdo->int_dsc)
-		ExFreePoolWithTag(vpdo->int_dsc, USBIP_VHCI_POOL_TAG);
-	vpdo->int_dsc = int_dsc;
+	if (vpdo->int_inf)
+		ExFreePoolWithTag(vpdo->int_inf, USBIP_VHCI_POOL_TAG);
+	vpdo->int_inf = int_dsc;
+	vpdo->int_inf_num = (UCHAR)(i);
 	return STATUS_SUCCESS;
 }
 
@@ -312,6 +313,15 @@ process_urb_res_submit(pusbip_vpdo_dev_t vpdo, PURB urb, struct usbip_header *hd
 		if (urb->UrbHeader.Function == URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER) {
 			urb->UrbBulkOrInterruptTransfer.TransferBufferLength = hdr->u.ret_submit.actual_length;
 		}
+		DBGE(DBG_WRITE, "%s - Invalid ret submit status: %l\n", dbg_urbfunc(urb->UrbHeader.Function), urb->UrbHeader.Status);
+		if (urb->UrbHeader.Status == USBD_STATUS_DATA_OVERRUN)
+			DBGE(DBG_WRITE, "%s - Invalid ret submit status: STATUS_DATA_OVERRUN\n", dbg_urbfunc(urb->UrbHeader.Function));
+		if(urb->UrbHeader.Status == USBD_STATUS_ERROR_SHORT_TRANSFER)
+			DBGE(DBG_WRITE, "%s - Invalid ret submit status: USBD_STATUS_ERROR_SHORT_TRANSFER\n", dbg_urbfunc(urb->UrbHeader.Function));
+		if(urb->UrbHeader.Status == USBD_STATUS_STALL_PID)
+			DBGE(DBG_WRITE, "%s - Invalid ret submit status: USBD_STATUS_STALL_PID\n", dbg_urbfunc(urb->UrbHeader.Function));
+		if(urb->UrbHeader.Status == USBD_STATUS_ERROR)
+			DBGE(DBG_WRITE, "%s - Invalid ret submit status: USBD_STATUS_ERROR\n", dbg_urbfunc(urb->UrbHeader.Function));
 		return STATUS_UNSUCCESSFUL;
 	}
 	DBGI(DBG_WRITE, "URB_FUNCTION: %s\n", dbg_urbfunc(urb->UrbHeader.Function));

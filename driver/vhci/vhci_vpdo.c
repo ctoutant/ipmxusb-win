@@ -116,6 +116,7 @@ vhci_QueryDeviceCaps_vpdo(pusbip_vpdo_dev_t vpdo, PIRP Irp)
 	// Set the capabilities.
 	//
 	if (deviceCapabilities->Version != 1 || deviceCapabilities->Size < sizeof(DEVICE_CAPABILITIES)) {
+		DBGW(DBG_PNP, "Invalid deviceCapabilities\n");
 		return STATUS_UNSUCCESSFUL;
 	}
 
@@ -524,7 +525,7 @@ GetUSBDIVersion(IN PVOID context, IN OUT PUSBD_VERSION_INFORMATION inf, IN OUT P
 
 	*HcdCapabilities = 0;
 	inf->USBDI_Version=0x600; /* Windows XP and above */
-	inf->Supported_USB_Version=0x300; /* USB 2.0 */
+	inf->Supported_USB_Version=0x200; /* USB 2.0 */
 }
 
 static VOID

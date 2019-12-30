@@ -14,6 +14,7 @@
 
 struct urb_req {
 	pusbip_vpdo_dev_t	vpdo;
+	USBD_PIPE_HANDLE	pipe_handle;
 	PIRP	irp;
 	KEVENT	*event;
 	unsigned long	seq_num, seq_num_unlink;

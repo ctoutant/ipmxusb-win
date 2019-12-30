@@ -76,32 +76,43 @@ store_urb_reset_dev(PIRP irp, struct urb_req *urbr)
 	return STATUS_SUCCESS;
 }
 
+extern NTSTATUS
+process_urb_abort_pipe(pusbip_vpdo_dev_t vpdo, USBD_PIPE_HANDLE pipe_handle);
+
 static NTSTATUS
 store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 {
 	struct _URB_PIPE_REQUEST	*urb_rp = &urb->UrbPipeRequest;
 	struct usbip_header	*hdr;
-	int	in, type;
+	int type;
+	pusbip_vpdo_dev_t vpdo;
+
+	vpdo = urbr->vpdo;
+	urbr->pipe_handle = urb_rp->PipeHandle;
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
-	in = PIPE2DIRECT(urb_rp->PipeHandle);
 	type = PIPE2TYPE(urb_rp->PipeHandle);
 	if (type != USB_ENDPOINT_TYPE_BULK && type != USB_ENDPOINT_TYPE_INTERRUPT) {
 		DBGE(DBG_READ, "Error, not a bulk pipe\n");
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, urb_rp->PipeHandle, 0, 0);
+	//set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, 0, 0, 0);
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, 0, 0, 0, 0);
 	RtlZeroMemory(hdr->u.cmd_submit.setup, 8);
 
 	usb_cspkt_t *csp = (usb_cspkt_t *)hdr->u.cmd_submit.setup;
-	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_RESET_PIPE);
+	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_CLEAR_FEATURE);
+	csp->wIndex.W = 0;
+	csp->wValue.W = 0;
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
+
+	process_urb_abort_pipe(vpdo, urb_rp->PipeHandle);
 
 	return STATUS_SUCCESS;
 }
@@ -181,6 +192,7 @@ store_urb_get_intf_desc(PIRP irp, PURB urb, struct urb_req *urbr)
 	csp->wLength = (unsigned short)urb_desc->TransferBufferLength;
 	csp->wValue.HiByte = urb_desc->DescriptorType;
 	csp->wValue.LowByte = urb_desc->Index;
+	csp->wIndex.W = urb_desc->LanguageId;
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
 	return STATUS_SUCCESS;
@@ -362,6 +374,8 @@ store_urb_bulk(PIRP irp, PURB urb, struct urb_req *urbr)
 	struct usbip_header	*hdr;
 	int	in, type;
 
+	urbr->pipe_handle = urb_bi->PipeHandle;
+
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
 		return STATUS_BUFFER_TOO_SMALL;
@@ -483,6 +497,8 @@ store_urb_iso(PIRP irp, PURB urb, struct urb_req *urbr)
 		return STATUS_INVALID_PARAMETER;
 	}
 
+	urbr->pipe_handle = urb_iso->PipeHandle;
+
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
 		return STATUS_BUFFER_TOO_SMALL;
@@ -546,6 +562,8 @@ store_urb_control_transfer(PIRP irp, PURB urb, struct urb_req* urbr)
 		DBGE(DBG_READ, "Cannot get usbip header\n");
 		return STATUS_BUFFER_TOO_SMALL;
 	}
+
+	urbr->pipe_handle = urb_control_ex->PipeHandle;
 
 /*	if (urb_control_ex->PipeHandle) {
 		in = PIPE2DIRECT(urb_control_ex->PipeHandle);
@@ -620,11 +638,16 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 	USHORT		code_func;
 	NTSTATUS	status;
 	KIRQL		oldirql;
-	PLIST_ENTRY	le, le_tmp;
+	PLIST_ENTRY	le;
 	struct urb_req* urbr_local;
+	usb_cspkt_t *csp;
 	//PUSBD_PIPE_INFORMATION pipe_inf;
+	//PUSBD_INTERFACE_INFORMATION int_inf;
 	USBD_PIPE_HANDLE pipe_handle;
-	unsigned int i;
+	//unsigned int i, k, counter;
+	//NTSTATUS abort_stat;
+	//BOOLEAN pipe_found = FALSE;
+	struct usbip_header* hdr;
 
 	DBGI(DBG_READ, "store_urbr_submit: urbr: %s\n", dbg_urbr(urbr));
 
@@ -678,44 +701,121 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 		status = store_urb_control_transfer(irp, urb, urbr);
 		break;
 	case URB_FUNCTION_ABORT_PIPE:
-		//if (urb->UrbPipeRequest.PipeHandle) {
-		pipe_handle = urb->UrbPipeRequest.PipeHandle;
+	//	status = STATUS_SUCCESS;
+	//	irp->IoStatus.Information = 0;
+	//	break;
+		hdr = get_usbip_hdr_from_read_irp(irp);
+		RtlZeroMemory(hdr->u.cmd_submit.setup, 8);
+		csp = (usb_cspkt_t*)hdr->u.cmd_submit.setup;
+		set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, 0, urb->UrbPipeRequest.PipeHandle, 0, 0);
+		build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_CLEAR_FEATURE);
+		irp->IoStatus.Information = sizeof(struct usbip_header);
+		status = STATUS_SUCCESS;
+		if (urb->UrbPipeRequest.PipeHandle) {
+			pipe_handle = urb->UrbPipeRequest.PipeHandle;
 			KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);
-			for (le = urbr->vpdo->head_urbr_pending.Flink; le != &urbr->vpdo->head_urbr_pending;) {
-				urbr_local = CONTAINING_RECORD(le, struct urb_req, list_state);
-			/*	if (urbr_local == urbr) {
-					le = le->Flink;
+			DBGI(DBG_READ, "Pipe abort before pending\n");
+			for (le = urbr->vpdo->head_urbr.Flink; le != &urbr->vpdo->head_urbr;) {
+				urbr_local = CONTAINING_RECORD(le, struct urb_req, list_all);
+				le = le->Flink;
+				if (urbr_local->seq_num == urbr->seq_num)
 					continue;
+				DBGI(DBG_READ, "Creawl thru all pipes: ADDR: %02x, TYPE: %d\n", PIPE2ADDR(pipe_handle), PIPE2TYPE(pipe_handle));
+				DBGI(DBG_READ, "Creawl thru all pipes: ADDR: %02x, TYPE: %d\n", PIPE2ADDR(urbr_local->pipe_handle), PIPE2TYPE(urbr_local->pipe_handle));
+				if (urbr_local->irp) {
+					if (PIPE2ADDR(pipe_handle) == PIPE2ADDR(urbr_local->pipe_handle) &&
+							PIPE2TYPE(pipe_handle) == PIPE2TYPE(urbr_local->pipe_handle)) {
+						KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+						urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
+						urbr_local->irp->IoStatus.Information = 0;
+						IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
+						KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);
+						free_urbr(urbr_local);
+					}
 				}
-				if (!(IsListEmpty(&urbr_local->list_all) && IsListEmpty(&urbr_local->list_state))) {
-					le = le->Flink;
-					continue;
-				}*/
+				else {
+					if (PIPE2ADDR(pipe_handle) == PIPE2ADDR(urbr_local->pipe_handle) &&
+							PIPE2TYPE(pipe_handle) == PIPE2TYPE(urbr_local->pipe_handle)) {
+						DBGI(DBG_READ, "Pipe abort one\n");
+						RemoveEntryListInit(&urbr_local->list_state);
+						RemoveEntryListInit(&urbr_local->list_all);
+						free_urbr(urbr_local);
+					}
+				}
+			}
+			KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+		}
+		break;
+
+			//	if (!(IsListEmpty(&urbr_local->list_all) && IsListEmpty(&urbr_local->list_state))) {
+			//		le = le->Flink;
+			//		continue;
+			//	}
 			//	urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
 			//	set_pipe(pipe_inf, urbr_local->vpdo->dsc_conf, urbr_local->vpdo->speed);
 			//	if (pipe_inf->PipeHandle != urb->UrbPipeRequest.PipeHandle)
 			//		continue;
-				for (i = 0; i < urbr_local->vpdo->dsc_conf->bNumInterfaces; i++) {
-					last_info_intf = NEXT_USBD_INTERFACE_INFO(last_info_intf);
-					/* urb_selc may have less info_intf than bNumInterfaces in conf desc */
-					if ((PVOID)last_info_intf >= end_urb_selc)
+			/*	int_inf = urbr_local->vpdo->int_inf;
+				pipe_found = FALSE;
+				DBGI(DBG_READ, "Creawl thru all interfaces\n");
+				for (i = 0; i < urbr_local->vpdo->int_inf_num; i++) {
+					DBGI(DBG_READ, "Creawl thre interfaces - setup inf start\n");
+					abort_stat = setup_intf(int_inf, urbr_local->vpdo->dsc_conf, urbr_local->vpdo->speed);
+					DBGI(DBG_READ, "Creawl thre interfaces - setup inf end\n");
+					if (abort_stat != STATUS_SUCCESS) {
+						DBGI(DBG_READ, "Cannot setup interface\n");
+						status = STATUS_UNSUCCESSFUL;
 						break;
+					}
+					DBGI(DBG_READ, "Creawl thru all pipes\n");
+					for (k = 0; k < int_inf->NumberOfPipes; k++) {
+						DBGI(DBG_READ, "Creawl thru all pipes: %i, ADDR: %02x, TYPE: %d\n", k, PIPE2ADDR(pipe_handle), PIPE2TYPE(pipe_handle));
+						DBGI(DBG_READ, "Creawl thru all pipes: %i, ADDR: %02x, TYPE: %d\n", k, PIPE2ADDR(int_inf->Pipes[k].PipeHandle), PIPE2TYPE(int_inf->Pipes[k].PipeHandle));
+						if (PIPE2ADDR(pipe_handle) == PIPE2ADDR(int_inf->Pipes[k].PipeHandle) &&
+								PIPE2TYPE(pipe_handle) == PIPE2TYPE(int_inf->Pipes[k].PipeHandle)) {
+							pipe_found = TRUE;
+							counter++;
+							DBGI(DBG_READ, "Pipe found\n");
+							break;
+						}
+					}
+					if (pipe_found)
+						break;
+					int_inf = NEXT_USBD_INTERFACE_INFO(int_inf);
 				}
-				setup_intf();
-
-				IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
-				le_tmp = le->Flink;
+				if (!pipe_found) {
+					le = le->Flink;
+					continue;
+				}
+				le = le->Flink;
 				RemoveEntryListInit(&urbr_local->list_state);
 				RemoveEntryListInit(&urbr_local->list_all);
-				le = le_tmp;
-				free_urbr(urbr_local);
+				KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+
+				if (urbr_local->irp != NULL) {
+					urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
+					urbr_local->irp->IoStatus.Information = 0;
+					//	urbr_local->irp->IoStatus.Information = 0;
+						//KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
+					IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
+					free_urbr(urbr_local);
+				}
+				DBGI(DBG_READ, "Processing pipe inoamation processed\n");
+				//IoCancelIrp(urbr_local->irp);
+				//KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);	
+
+				//le = le_tmp;
+				KeAcquireSpinLock(&urbr->vpdo->lock_urbr, &oldirql);
+				//break;
 			}
 			KeReleaseSpinLock(&urbr->vpdo->lock_urbr, oldirql);
-			irp->IoStatus.Information = 0;
-			return STATUS_SUCCESS;
-		//}
-		//if (urb->UrbPipeRequest.PipeHandle == NULL)
-	//		return STATUS_SUCCESS;
+			//if (!counter)
+			//	status = STATUS_INVALID_PARAMETER;
+		}
+		if (urb->UrbPipeRequest.PipeHandle == NULL)
+			status = STATUS_SUCCESS;
+		break;
+		*/
 	default:
 		irp->IoStatus.Information = 0;
 		DBGE(DBG_READ, "unhandled urb function: %s\n", dbg_urbfunc(code_func));
@@ -775,6 +875,8 @@ store_cancelled_urbr(PIRP irp, struct urb_req *urbr)
 {
 	struct usbip_header	*hdr;
 
+	DBGI(DBG_READ, "store_cancelled_urbr\n");
+
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL)
 		return STATUS_INVALID_PARAMETER;
@@ -805,7 +907,7 @@ store_urbr(PIRP irp, struct urb_req *urbr)
 		status = store_urbr_submit(irp, urbr);
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-		status = STATUS_NOT_SUPPORTED;//store_urb_reset_dev(irp, urbr);
+		status = store_urb_reset_dev(irp, urbr);
 		break;
 	default:
 		DBGW(DBG_READ, "unhandled ioctl: %s\n", dbg_vhci_ioctl_code(ioctl_code));

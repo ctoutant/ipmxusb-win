@@ -143,7 +143,9 @@ typedef struct
 	// Standard confifuration descriptor
 	PUSB_CONFIGURATION_DESCRIPTOR	dsc_conf;
 	// Interface descriptor for given  dsc_conf
-	PUSBD_INTERFACE_INFORMATION	int_dsc;
+	PUSBD_INTERFACE_INFORMATION	int_inf;
+	/*  */
+	UCHAR int_inf_num;
 
 	KTIMER	timer;
 	KDPC	dpc;

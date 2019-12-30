@@ -696,6 +696,9 @@ vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 	vpdo->Present = TRUE; // attached to the bus
 	vpdo->ReportedMissing = FALSE; // not yet reported missing
 
+	vpdo->int_inf = NULL;
+	vpdo->int_inf_num = 0;
+
 	INITIALIZE_PNP_STATE(vpdo);
 
 	// vpdo usually starts its life at D3
