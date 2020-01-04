@@ -176,7 +176,7 @@ vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 		break;
 	case IOCTL_INTERNAL_USB_GET_PORT_STATUS:
 		status = STATUS_SUCCESS;
-		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_CONNECTED | USBD_PORT_ENABLED;
+		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_ENABLED | USBD_PORT_CONNECTED;
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
 		status = submit_urbr_irp(vpdo, Irp);
