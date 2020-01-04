@@ -380,6 +380,7 @@ static VOID CALLBACK
 read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 {
 	devbuf_t	*rbuff;
+
 	rbuff = (devbuf_t *)lpOverlapped->hEvent;
 	if (errcode == 0) {
 		rbuff->offp += nread;
@@ -445,6 +446,7 @@ static VOID CALLBACK
 write_completion(DWORD errcode, DWORD nwrite, LPOVERLAPPED lpOverlapped)
 {
 	devbuf_t	*wbuff, *rbuff;
+
 	if (errcode != 0)
 		return;
 	wbuff = (devbuf_t *)lpOverlapped->hEvent;
@@ -530,6 +532,7 @@ static BOOL
 read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 {
 	int	res;
+
 	if (rbuff->in_reading)
 		return TRUE;
 	if ((res = read_dev(rbuff, wbuff->swap_req)) < 0)
