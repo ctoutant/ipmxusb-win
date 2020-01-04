@@ -31,20 +31,20 @@ enum {
 
 static struct usbip_install_devinfo_struct device_list[] = {
 	{
-		.inf_filename = "usbip_vhci.inf",
-		.hwid_inf_section = "Standard.NTamd64",
-		.hwid_inf_key = "USB/IP VHCI",
+		.inf_filename        = "usbip_vhci.inf",
+		.hwid_inf_section    = "Standard.NTamd64",
+		.hwid_inf_key        = "USB/IP VHCI",
 		.devdesc_inf_section = "Strings",
-		.devdesc_inf_key = "DeviceDesc",
-		.dev_instance_path = "ROOT\\USBIP\\0000"
+		.devdesc_inf_key     = "DeviceDesc",
+		.dev_instance_path   = "ROOT\\USBIP\\0000"
 	}
 };
 
 
 
 static const char usbip_install_usage_string[] =
-"usbip install <vhci|stub>\n"
-"    vhci	install or reinstall usbip VHCI driver\n";
+"usbip install\n"
+"    install or reinstall usbip VHCI driver\n";
 
 
 void usbip_install_usage(void)
@@ -56,14 +56,17 @@ void usbip_install_usage(void)
 static BOOL usbip_install_get_inf_path(char *inf_path_buffer, DWORD buffer_size,
 		const struct usbip_install_devinfo_struct *dev_data) {
 	HRESULT result = GetModuleFileName(NULL, inf_path_buffer, buffer_size - 1);
-	if (!result)
+	if (!result) {
 		return FALSE;
+	}
 	result = PathRemoveFileSpec(inf_path_buffer);
-	if (!result)
+	if (!result) {
 		return FALSE;
+	}
 	result = PathAppend(inf_path_buffer, dev_data->inf_filename);
-	if (!result)
+	if (!result) {
 		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -207,12 +210,12 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 		if (!result_ok) {
 			last_error = GetLastError();
 			if (last_error != ERROR_DEVINST_ALREADY_EXISTS) {
-				err("Cannot get DeviceInfo. Restart PC and try again");
+				err("Cannot get DeviceInfo. Remove device manually by Device Manager, restart PC and try again");
 				goto error;
 			}
 			result_ok = usbip_install_remove_device(devinfoset, data);
 			if (!result_ok) {
-				err("Cannot remove existing device. Restart PC and try again");
+				err("Cannot get DeviceInfo. Remove device manually by Device Manager, restart PC and try again");
 				goto error;
 			}
 			continue;
@@ -242,7 +245,7 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 		goto error;
 	}
 
-	// Install driver by INF file nad hardware id
+	// Install driver by INF file and hardware id
 	result_ok = UpdateDriverForPlugAndPlayDevices(NULL,
 		hw_id,
 		inf_file,
