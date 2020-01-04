@@ -15,51 +15,50 @@ extern PAGEABLE NTSTATUS
 vhci_eject_device(PUSBIP_VHCI_EJECT_HARDWARE Eject, pusbip_vhub_dev_t vhub);
 
 NTSTATUS
-process_urb_abort_pipe(pusbip_vpdo_dev_t vpdo, USBD_PIPE_HANDLE pipe_handle)
+vhci_ioctl_abort_pipe(pusbip_vpdo_dev_t vpdo,
+		USBD_PIPE_HANDLE pipe_handle)
 {
-
 	KIRQL		oldirql;
 	PLIST_ENTRY	le;
-	struct urb_req* urbr_local;
+	struct urb_req*	urbr_local;
 
-	if (pipe_handle) {
-		KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
-		DBGI(DBG_READ, "Pipe abort before pending\n");
-		for (le = vpdo->head_urbr.Flink; le != &vpdo->head_urbr;) {
-			urbr_local = CONTAINING_RECORD(le, struct urb_req, list_all);
-			le = le->Flink;
+	DBGI(DBG_IOCTL, "vhci_ioctl_abort_pipe: enter\n");
 
-			DBGI(DBG_READ, "Creawl(A) thru all pipes: ADDR: %02x, TYPE: %d\n", PIPE2ADDR(pipe_handle), PIPE2TYPE(pipe_handle));
-			DBGI(DBG_READ, "Creawl(B) thru all pipes: ADDR: %02x, TYPE: %d\n", PIPE2ADDR(urbr_local->pipe_handle), PIPE2TYPE(urbr_local->pipe_handle));
-			if (urbr_local->irp) {
-				if (PIPE2ADDR(pipe_handle) == PIPE2ADDR(urbr_local->pipe_handle) &&
-						PIPE2TYPE(pipe_handle) == PIPE2TYPE(urbr_local->pipe_handle)) {
-					DBGI(DBG_READ, "Pipe abort two\n");
-					RemoveEntryListInit(&urbr_local->list_state);
-					RemoveEntryListInit(&urbr_local->list_all);
-					KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
-					urbr_local->irp->IoStatus.Status = STATUS_CANCELLED;
-					urbr_local->irp->IoStatus.Information = 0;
-					IoCompleteRequest(urbr_local->irp, IO_NO_INCREMENT);
-					KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
-					free_urbr(urbr_local);
-				}
-			}
-			else {
-				if (PIPE2ADDR(pipe_handle) == PIPE2ADDR(urbr_local->pipe_handle) &&
-						PIPE2TYPE(pipe_handle) == PIPE2TYPE(urbr_local->pipe_handle)) {
-					DBGI(DBG_READ, "Pipe abort one\n");
-					RemoveEntryListInit(&urbr_local->list_state);
-					RemoveEntryListInit(&urbr_local->list_all);
-					free_urbr(urbr_local);
-				}
-			}
-		}
-		KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+	if (!pipe_handle) {
+		DBGI(DBG_IOCTL, "process_urb_abort_pipe: empty pipe_handle\n");
+		return STATUS_INVALID_PARAMETER;
 	}
 
-	////TODO need to check
-	DBGI(DBG_IOCTL, "abort_pipe: %x\n", pipe_handle);
+	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
+	
+	// Crawl thru all URBRs
+	// ABORT_PIPE URB will be automatically skipped because
+	// pipe_handle is zero.
+	for (le = vpdo->head_urbr.Flink; le != &vpdo->head_urbr;) {
+		urbr_local = CONTAINING_RECORD(le, struct urb_req, list_all);
+		le = le->Flink;
+
+		if (PIPE2ADDR(pipe_handle) != PIPE2ADDR(urbr_local->pipe_handle))
+			continue;
+
+		DBGI(DBG_IOCTL, "Pipe IRP will be cancelled: ADDR: %02x\n", PIPE2ADDR(pipe_handle));
+		if (urbr_local->irp) {
+			DBGI(DBG_READ, "Pipe abort two\n");
+			RemoveEntryListInit(&urbr_local->list_state);
+			RemoveEntryListInit(&urbr_local->list_all);
+			KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+			IoCancelIrp(urbr_local->irp);
+			KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
+		}
+		else {
+			DBGI(DBG_READ, "Pipe abort one\n");
+			RemoveEntryListInit(&urbr_local->list_state);
+			RemoveEntryListInit(&urbr_local->list_all);
+			free_urbr(urbr_local);
+		}
+	}
+	KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+
 	return STATUS_SUCCESS;
 }
 
@@ -67,16 +66,6 @@ static NTSTATUS
 process_urb_get_frame(pusbip_vpdo_dev_t vpdo, PURB urb)
 {
 	struct _URB_GET_CURRENT_FRAME_NUMBER	*urb_get = &urb->UrbGetCurrentFrameNumber;
-	UNREFERENCED_PARAMETER(vpdo);
-
-	urb_get->FrameNumber = 0;
-	return STATUS_SUCCESS;
-}
-
-static NTSTATUS
-process_urb_reset_pipe(pusbip_vpdo_dev_t vpdo, PURB urb)
-{
-	struct _URB_GET_CURRENT_FRAME_NUMBER* urb_get = &urb->UrbGetCurrentFrameNumber;
 	UNREFERENCED_PARAMETER(vpdo);
 
 	urb_get->FrameNumber = 0;
@@ -98,12 +87,6 @@ submit_urbr_irp(pusbip_vpdo_dev_t vpdo, PIRP irp)
 	return status;
 }
 
-extern struct urb_req*
-find_pending_urbr(pusbip_vpdo_dev_t vpdo);
-
-struct urb_req*
-find_sent_urbr(pusbip_vpdo_dev_t vpdo, struct usbip_header* hdr);
-
 static NTSTATUS
 process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 {
@@ -118,7 +101,7 @@ process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	case URB_FUNCTION_GET_CURRENT_FRAME_NUMBER:
 		return process_urb_get_frame(vpdo, urb);
 	case URB_FUNCTION_ABORT_PIPE:
-		return STATUS_SUCCESS; // process_urb_abort_pipe(vpdo, urb->UrbPipeRequest.PipeHandle);
+		return vhci_ioctl_abort_pipe(vpdo, urb->UrbPipeRequest.PipeHandle);
 	case URB_FUNCTION_SELECT_CONFIGURATION:
 	case URB_FUNCTION_ISOCH_TRANSFER:
 	case URB_FUNCTION_CLASS_DEVICE:
@@ -196,7 +179,7 @@ vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_CONNECTED | USBD_PORT_ENABLED;
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-		status = STATUS_SUCCESS;//submit_urbr_irp(vpdo, Irp);
+		status = submit_urbr_irp(vpdo, Irp);
 		break;
 	case IOCTL_INTERNAL_USB_GET_TOPOLOGY_ADDRESS:
 		status = setup_topology_address(vpdo, irpStack);

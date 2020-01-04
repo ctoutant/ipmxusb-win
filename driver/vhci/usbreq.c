@@ -149,7 +149,6 @@ cancel_urbr(PDEVICE_OBJECT devobj, PIRP irp)
 	DBGI(DBG_GENERAL, "irp will be cancelled: %p\n", irp);
 
 	remove_cancelled_urbr(vpdo, irp);
-//	DBGI(DBG_GENERAL, "irp will be cancelled, cancell routine proceeed: %p\n", irp);
 
 	irp->IoStatus.Status = STATUS_CANCELLED;
 	IoCompleteRequest(irp, IO_NO_INCREMENT);

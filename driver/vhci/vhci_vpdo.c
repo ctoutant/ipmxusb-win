@@ -475,8 +475,8 @@ vhci_QueryBusInformation_vpdo(__in pusbip_vpdo_dev_t vpdo, __in PIRP Irp)
 BOOLEAN USB_BUSIFFN
 IsDeviceHighSpeed(PVOID context)
 {
+	DBGI(DBG_GENERAL, "IsDeviceHighSpeed called\n");
 	pusbip_vpdo_dev_t	vpdo = context;
-	DBGI(DBG_GENERAL, "IsDeviceHighSpeed called, it is %d\n", vpdo->speed);
 	if (vpdo->speed == USB_SPEED_HIGH)
 		return TRUE;
 	return FALSE;
@@ -524,7 +524,7 @@ GetUSBDIVersion(IN PVOID context, IN OUT PUSBD_VERSION_INFORMATION inf, IN OUT P
 	DBGI(DBG_GENERAL, "GetUSBDIVersion called\n");
 
 	*HcdCapabilities = 0;
-	inf->USBDI_Version=0x600; /* Windows XP and above */
+	inf->USBDI_Version = 0x600; /* Windows 8 and above */
 	inf->Supported_USB_Version=0x200; /* USB 2.0 */
 }
 

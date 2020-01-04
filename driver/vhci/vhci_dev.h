@@ -139,13 +139,8 @@ typedef struct
 	PFILE_OBJECT	fo;
 	unsigned int	devid;
 	unsigned long	seq_num;
-
-	// Standard confifuration descriptor
+	// Standard configuration descriptor
 	PUSB_CONFIGURATION_DESCRIPTOR	dsc_conf;
-	// Interface descriptor for given  dsc_conf
-	PUSBD_INTERFACE_INFORMATION	int_inf;
-	/*  */
-	UCHAR int_inf_num;
 
 	KTIMER	timer;
 	KDPC	dpc;

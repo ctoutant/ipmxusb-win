@@ -14,6 +14,7 @@
 
 struct urb_req {
 	pusbip_vpdo_dev_t	vpdo;
+	/* pipe handle for which the URBR is paired */
 	USBD_PIPE_HANDLE	pipe_handle;
 	PIRP	irp;
 	KEVENT	*event;
