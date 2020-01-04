@@ -96,11 +96,12 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
-	type = PIPE2TYPE(urb_rp->PipeHandle);
-	if (type != USB_ENDPOINT_TYPE_BULK && type != USB_ENDPOINT_TYPE_INTERRUPT) {
-		DBGE(DBG_READ, "Error, not a bulk pipe\n");
-		return STATUS_INVALID_PARAMETER;
-	}
+	/*
+	 * Documentation for USB says:
+	 * "The Halt feature is required to be implemented for all interrupt and bulk endpoint types"
+	 * We do not need to check pipe type because USB doc does not forbid
+	 * send CLEAR_FEATURE(ENDPOINT_HALT) to other pipe types.
+	 */
 
 	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, 0, 0, 0, 0);
 
@@ -108,8 +109,8 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 	usb_cspkt_t *csp = (usb_cspkt_t *)hdr->u.cmd_submit.setup;
 
 	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_CLEAR_FEATURE);
-	csp->wIndex.W = PIPE2ADDR(urb_rp->PipeHandle); // Specify endpoint number
-	csp->wValue.W = 0; // Clear ENDPOINT_HALT
+	csp->wIndex.W = PIPE2ADDR(urb_rp->PipeHandle); // specify endpoint number
+	csp->wValue.W = 0; // clear ENDPOINT_HALT
 	csp->wLength = 0;
 
 	DBGE(DBG_READ, "PipeHandle Addr: %i\n", PIPE2ADDR(urb_rp->PipeHandle));

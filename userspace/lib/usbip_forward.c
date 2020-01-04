@@ -342,7 +342,7 @@ setup_rw_overlapped(devbuf_t *buff)
 }
 
 static BOOL
-init_devbuf(devbuf_t *buff, const char *desc, BOOL is_req, BOOL swap_req, HANDLE hdev)
+init_devbuf(devbuf_t *buff, const char *desc, BOOL is_req, BOOL swap_req, HANDLE hdev, HANDLE semaphore)
 {
 	buff->bufp = (char *)malloc(1024);
 	if (buff->bufp == NULL)
@@ -360,7 +360,7 @@ init_devbuf(devbuf_t *buff, const char *desc, BOOL is_req, BOOL swap_req, HANDLE
 	buff->bufmaxp = 1024;
 	buff->bufmaxc = 0;
 	buff->hdev = hdev;
-	buff->semaphore = CreateSemaphore(NULL, 0, 1, NULL);
+	buff->semaphore = semaphore;
 	if (!setup_rw_overlapped(buff)) {
 		free(buff->bufp);
 		return FALSE;
@@ -374,14 +374,12 @@ cleanup_devbuf(devbuf_t *buff)
 	free(buff->bufp);
 	if (buff->bufp != buff->bufc)
 		free(buff->bufc);
-	if (buff->semaphore != INVALID_HANDLE_VALUE)
-		CloseHandle(buff->semaphore);
 }
 
 static VOID CALLBACK
 read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 {
-	devbuf_t	*rbuff, *wbuff;
+	devbuf_t	*rbuff;
 	rbuff = (devbuf_t *)lpOverlapped->hEvent;
 	if (errcode == 0) {
 		rbuff->offp += nread;
@@ -389,9 +387,7 @@ read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 			rbuff->invalid = TRUE;
 	}
 	rbuff->in_reading = FALSE;
-	wbuff = rbuff->peer;
 	ReleaseSemaphore(rbuff->semaphore, 1, NULL);
-	ReleaseSemaphore(wbuff->semaphore, 1, NULL);
 }
 
 static BOOL
@@ -459,6 +455,7 @@ write_completion(DWORD errcode, DWORD nwrite, LPOVERLAPPED lpOverlapped)
 	}
 	rbuff = wbuff->peer;
 	rbuff->offc += nwrite;
+	ReleaseSemaphore(wbuff->semaphore, 1, NULL);
 }
 
 static BOOL
@@ -507,7 +504,6 @@ read_dev(devbuf_t *rbuff, BOOL swap_req_write)
 
 		if (!read_devbuf(rbuff, nmore))
 			return -1;
-		info("read dev return 0\n");
 		return 0;
 	}
 
@@ -575,11 +571,13 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 		swap_req_src = FALSE;
 		swap_req_dst = TRUE;
 	}
-	if (!init_devbuf(&buff_src, desc_src, TRUE, swap_req_src, hdev_src)) {
+
+	HANDLE semaphore = CreateSemaphore(NULL, 0, 1, NULL);
+	if (!init_devbuf(&buff_src, desc_src, TRUE, swap_req_src, hdev_src, semaphore)) {
 		err("%s: failed to initialize %s buffer", __FUNCTION__, desc_src);
 		return;
 	}
-	if (!init_devbuf(&buff_dst, desc_dst, FALSE, swap_req_dst, hdev_dst)) {
+	if (!init_devbuf(&buff_dst, desc_dst, FALSE, swap_req_dst, hdev_dst, semaphore)) {
 		err("%s: failed to initialize %s buffer", __FUNCTION__, desc_dst);
 		cleanup_devbuf(&buff_src);
 		return;
@@ -604,7 +602,7 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 			info("one of src|dst is invalid\n");
 			break;
 		}
-		WaitForSingleObjectEx(buff_dst.semaphore, 500, TRUE);
+		WaitForSingleObjectEx(semaphore, 500, TRUE);
 	}
 
 	if (interrupted) {
@@ -617,51 +615,37 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 	DWORD lpNumberOfBytesRead = 0;
 
 	while (TRUE) {
-		info("result!");
 		BOOL result = GetOverlappedResult(hdev_src, &buff_src.ovs[0], &lpNumberOfBytesRead, FALSE);
 		if (result) {
-			info("SRC buff cleaned");
 			cleanup_devbuf(&buff_src);
 			break;
 		}
 		else {
-			info("DST buff cleaned");
 			if (GetLastError() == ERROR_IO_INCOMPLETE) {
 				SleepEx(1000, TRUE);
 				continue;
 			}
-			// Error, do not clean resources due to unknown status
+			/* error, do not clean resources due to unknown status */
 			break;
 		}
 	}
 
 	while (TRUE) {
-		info("result 2!");
 		BOOL result = GetOverlappedResult(hdev_dst, &buff_dst.ovs[0], &lpNumberOfBytesRead, FALSE);
 		if (result) {
-			info("DST buff cleaned");
 			cleanup_devbuf(&buff_dst);
 			break;
 		}
 		else {
-			info("DST buff cleaned");
 			if (GetLastError() == ERROR_IO_INCOMPLETE) {
 				SleepEx(1000, TRUE);
 				continue;
 			}
+			/* error, do not clean resources due to unknown status */
 			break;
 		}
 	}
 
-	/* Cancel an uncompleted asynchronous read */
-	/* If there's no asynchronous read pending, CancelIo seems to be blocked. */
-	/* in_reading should be checked as cleared to guarantee that an IO completion routine has been called */
-	/*if (inbound) {
-		closesocket((SOCKET)hdev_src);
-	}
-	else {
-		closesocket((SOCKET)hdev_dst);
-	}*/
-
-
+	/* just clean up semaphore because buff structure is destroyed and will not be used anymore */
+	CloseHandle(semaphore);
 }
