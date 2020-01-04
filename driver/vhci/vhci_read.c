@@ -99,7 +99,7 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 	/*
 	 * Documentation for USB says:
 	 * "The Halt feature is required to be implemented for all interrupt and bulk endpoint types"
-	 * We do not need to check pipe type because USB doc does not forbid
+	 * We do not need to check pipe type because USB doc. does not forbid
 	 * send CLEAR_FEATURE(ENDPOINT_HALT) to other pipe types.
 	 */
 
