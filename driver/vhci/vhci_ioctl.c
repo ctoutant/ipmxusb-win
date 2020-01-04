@@ -98,10 +98,10 @@ process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	DBGI(DBG_IOCTL, "process_irp_urb_req: function: %s\n", dbg_urbfunc(urb->UrbHeader.Function));
 
 	switch (urb->UrbHeader.Function) {
-	case URB_FUNCTION_GET_CURRENT_FRAME_NUMBER:
-		return process_urb_get_frame(vpdo, urb);
 	case URB_FUNCTION_ABORT_PIPE:
 		return vhci_ioctl_abort_pipe(vpdo, urb->UrbPipeRequest.PipeHandle);
+	case URB_FUNCTION_GET_CURRENT_FRAME_NUMBER:
+		return process_urb_get_frame(vpdo, urb);
 	case URB_FUNCTION_SELECT_CONFIGURATION:
 	case URB_FUNCTION_ISOCH_TRANSFER:
 	case URB_FUNCTION_CLASS_DEVICE:
