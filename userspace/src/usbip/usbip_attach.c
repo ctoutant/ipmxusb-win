@@ -143,7 +143,9 @@ attach_device(const char *host, const char *busid)
 		return 1;
 	}
 
-	SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+	/* set priority to HIGH for better performance */
+	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+
 	usbip_forward(hdev, (HANDLE)sockfd, FALSE);
 
 	usbip_vhci_detach_device(hdev, rhport);

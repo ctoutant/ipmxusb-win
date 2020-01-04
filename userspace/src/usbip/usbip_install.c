@@ -53,7 +53,7 @@ void usbip_install_usage(void)
 }
 
 
-static BOOL usbip_install_get_inf_path(char* inf_path_buffer, DWORD buffer_size,
+static BOOL usbip_install_get_inf_path(char *inf_path_buffer, DWORD buffer_size,
 		const struct usbip_install_devinfo_struct *dev_data) {
 	HRESULT result = GetModuleFileName(NULL, inf_path_buffer, buffer_size - 1);
 	if (!result)
@@ -93,7 +93,7 @@ static BOOL usbip_install_get_device_description(char *device_desc_buffer, DWORD
 	return TRUE;
 }
 
-static BOOL usbip_install_get_hardware_id(char* buffer, DWORD buffer_size,
+static BOOL usbip_install_get_hardware_id(char *buffer, DWORD buffer_size,
 	HINF inf_handle, const struct usbip_install_devinfo_struct *dev_data)
 {
 	assert(buffer != NULL);
