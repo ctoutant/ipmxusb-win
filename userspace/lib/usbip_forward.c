@@ -534,9 +534,8 @@ read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 		return TRUE;
 	if ((res = read_dev(rbuff, wbuff->swap_req)) < 0)
 		return FALSE;
-	if (res == 0) {
+	if (res == 0)
 		return TRUE;
-	}
 
 	return write_devbuf(wbuff, rbuff);
 }
