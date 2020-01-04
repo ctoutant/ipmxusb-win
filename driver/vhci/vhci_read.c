@@ -721,7 +721,7 @@ store_cancelled_urbr(PIRP irp, struct urb_req *urbr)
 {
 	struct usbip_header	*hdr;
 
-	DBGI(DBG_READ, "store_cancelled_urbr\n");
+	DBGI(DBG_READ, "store_cancelled_urbr: enter\n");
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL)

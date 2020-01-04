@@ -540,7 +540,7 @@ read_write_dev(devbuf_t *rbuff, devbuf_t *wbuff)
 	return write_devbuf(wbuff, rbuff);
 }
 
-static volatile BOOL interrupted;
+static volatile BOOL	interrupted;
 
 static void
 signalhandler(int signal)
