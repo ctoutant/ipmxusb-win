@@ -87,7 +87,6 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 	 */
 	struct _URB_PIPE_REQUEST	*urb_rp = &urb->UrbPipeRequest;
 	struct usbip_header	*hdr;
-	int type;
 
 	urbr->pipe_handle = urb_rp->PipeHandle;
 
@@ -560,7 +559,7 @@ store_urb_control_transfer_ex(PIRP irp, PURB urb, struct urb_req* urbr)
 {
 	struct _URB_CONTROL_TRANSFER_EX* urb_control_ex = &urb->UrbControlTransferEx;
 	struct usbip_header* hdr;
-	int	in = urb_control_ex->TransferFlags & USBD_TRANSFER_DIRECTION_IN ? 1 : 0;
+	int	in = PIPE2DIRECT(urb_control_ex->PipeHandle);
 
 	urbr->pipe_handle = urb_control_ex->PipeHandle;
 
@@ -568,22 +567,6 @@ store_urb_control_transfer_ex(PIRP irp, PURB urb, struct urb_req* urbr)
 	if (hdr == NULL) {
 		DBGE(DBG_READ, "Cannot get usbip header\n");
 		return STATUS_BUFFER_TOO_SMALL;
-	}
-
-	if (!urb_control_ex->PipeHandle) {
-		DBGI(DBG_READ, "Pipe handle empty\n");
-	}
-	if (urb_control_ex->TransferFlags & USBD_DEFAULT_PIPE_TRANSFER) {
-		DBGI(DBG_READ, "Use default pipe\n");
-	}
-	if (urb_control_ex->TransferFlags & USBD_TRANSFER_DIRECTION_IN) {
-		DBGI(DBG_READ, "Control ex: USBD_TRANSFER_DIRECTION_IN\n");
-	}
-	else {
-		DBGI(DBG_READ, "Control ex: USBD_TRANSFER_DIRECTION_OUT\n");
-	}
-	if (urb_control_ex->TransferFlags & USBD_SHORT_TRANSFER_OK) {
-		DBGI(DBG_READ, "Control ex: Short transfer OK\n");
 	}
 
 	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, urb_control_ex->PipeHandle,
