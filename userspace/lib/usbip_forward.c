@@ -388,7 +388,8 @@ read_completion(DWORD errcode, DWORD nread, LPOVERLAPPED lpOverlapped)
 			rbuff->invalid = TRUE;
 	}
 	rbuff->in_reading = FALSE;
-	ReleaseSemaphore(rbuff->semaphore, 1, NULL);
+	if (rbuff->semaphore != INVALID_HANDLE_VALUE)
+		ReleaseSemaphore(rbuff->semaphore, 1, NULL);
 }
 
 static BOOL
@@ -457,7 +458,8 @@ write_completion(DWORD errcode, DWORD nwrite, LPOVERLAPPED lpOverlapped)
 	}
 	rbuff = wbuff->peer;
 	rbuff->offc += nwrite;
-	ReleaseSemaphore(wbuff->semaphore, 1, NULL);
+	if(wbuff->semaphore != INVALID_HANDLE_VALUE)
+		ReleaseSemaphore(wbuff->semaphore, 1, NULL);
 }
 
 static BOOL
