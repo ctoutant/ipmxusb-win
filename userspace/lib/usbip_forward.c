@@ -592,11 +592,9 @@ usbip_forward(HANDLE hdev_src, HANDLE hdev_dst, BOOL inbound)
 
 	while (!interrupted) {
 		if (!read_write_dev(&buff_src, &buff_dst)) {
-			info("read_write_dev src --> dst\n");
 			break;
 		}
 		if (!read_write_dev(&buff_dst, &buff_src)) {
-			info("read_write_dev dst --> src\n");
 			break;
 		}
 
