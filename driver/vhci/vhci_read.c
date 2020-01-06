@@ -88,7 +88,8 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 	struct _URB_PIPE_REQUEST	*urb_rp = &urb->UrbPipeRequest;
 	struct usbip_header	*hdr;
 
-	urbr->pipe_handle = urb_rp->PipeHandle;
+	/* Do not set pipe_handl becausevhci_ioctl_abort_pipe function */
+	//urbr->pipe_handle = urb_rp->PipeHandle;
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
