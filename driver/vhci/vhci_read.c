@@ -11,7 +11,10 @@ extern void
 set_cmd_submit_usbip_header(struct usbip_header *h, unsigned long seqnum, unsigned int devid,
 	unsigned int direct, USBD_PIPE_HANDLE pipe, unsigned int flags, unsigned int len);
 
-void
+extern NTSTATUS
+vhci_ioctl_abort_pipe(pusbip_vpdo_dev_t vpdo, USBD_PIPE_HANDLE hPipe);
+
+extern void
 set_cmd_unlink_usbip_header(struct usbip_header *h, unsigned long seqnum, unsigned int devid, unsigned long seqnum_unlink);
 
 static struct usbip_header *
@@ -79,29 +82,38 @@ store_urb_reset_dev(PIRP irp, struct urb_req *urbr)
 static NTSTATUS
 store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 {
+	/* 1. We clear STALL/HALT feature on endpoint specified by pipe
+	 * 2. We abort/cancel all IRP for given pipe
+	 */
 	struct _URB_PIPE_REQUEST	*urb_rp = &urb->UrbPipeRequest;
 	struct usbip_header	*hdr;
-	int	in, type;
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
-	in = PIPE2DIRECT(urb_rp->PipeHandle);
-	type = PIPE2TYPE(urb_rp->PipeHandle);
-	if (type != USB_ENDPOINT_TYPE_BULK && type != USB_ENDPOINT_TYPE_INTERRUPT) {
-		DBGE(DBG_READ, "Error, not a bulk pipe\n");
-		return STATUS_INVALID_PARAMETER;
-	}
+	/*
+	 * Documentation for USB says:
+	 * "The Halt feature is required to be implemented for all interrupt and bulk endpoint types"
+	 * We do not need to check pipe type because USB doc. does not forbid
+	 * send CLEAR_FEATURE(ENDPOINT_HALT) to other pipe types.
+	 */
 
-	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, urb_rp->PipeHandle, 0, 0);
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, 0, 0, 0, 0);
+
 	RtlZeroMemory(hdr->u.cmd_submit.setup, 8);
-
 	usb_cspkt_t *csp = (usb_cspkt_t *)hdr->u.cmd_submit.setup;
-	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_RESET_PIPE);
+
+	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_CLEAR_FEATURE);
+	csp->wIndex.W = PIPE2ADDR(urb_rp->PipeHandle); // specify endpoint number
+	csp->wValue.W = 0; // clear ENDPOINT_HALT
+	csp->wLength = 0;
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
+
+	// cancel/abort all URBs for given pipe
+	vhci_ioctl_abort_pipe(urbr->vpdo, urb_rp->PipeHandle);
 
 	return STATUS_SUCCESS;
 }
