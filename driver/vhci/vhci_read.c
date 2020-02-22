@@ -87,26 +87,25 @@ store_urb_reset_pipe(PIRP irp, PURB urb, struct urb_req *urbr)
 	 */
 	struct _URB_PIPE_REQUEST	*urb_rp = &urb->UrbPipeRequest;
 	struct usbip_header	*hdr;
-	int	in, type;
+	int	type;
 
 	hdr = get_usbip_hdr_from_read_irp(irp);
 	if (hdr == NULL) {
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
-	in = PIPE2DIRECT(urb_rp->PipeHandle);
 	type = PIPE2TYPE(urb_rp->PipeHandle);
 	if (type != USB_ENDPOINT_TYPE_BULK && type != USB_ENDPOINT_TYPE_INTERRUPT) {
 		DBGW(DBG_READ, "CLEAR not allowed to a non-bulk pipe[%d]\n", type);
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, 0, 0, 0);
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, 0, 0, 0, 0);
 	RtlZeroMemory(hdr->u.cmd_submit.setup, 8);
 
 	usb_cspkt_t *csp = (usb_cspkt_t *)hdr->u.cmd_submit.setup;
 	build_setup_packet(csp, 0, BMREQUEST_STANDARD, BMREQUEST_TO_ENDPOINT, USB_REQUEST_CLEAR_FEATURE);
-	csp->wIndex.LowByte = PIPE2ADDR(urb_rp->PipeHandle) | (unsigned char)(in << 7); // Specify enpoint address and direction
+	csp->wIndex.LowByte = PIPE2DIRECT(urb_rp->PipeHandle) | PIPE2ADDR(urb_rp->PipeHandle);
 	csp->wIndex.HiByte = 0;
 	csp->wValue.W = 0; // clear ENDPOINT_HALT
 	csp->wLength = 0;
