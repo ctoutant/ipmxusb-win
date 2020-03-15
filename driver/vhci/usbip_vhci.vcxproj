@@ -94,6 +94,9 @@
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
+  <PropertyGroup>
+    <TestCertificate>$(ProjectDir)..\usbip_test.pfx</TestCertificate>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
