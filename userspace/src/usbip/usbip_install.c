@@ -268,6 +268,12 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 		INSTALLFLAG_FORCE,
 		FALSE);
 	if (!result_ok) {
+		last_error = GetLastError();
+		err("inf file install failed %u", last_error);
+		if (last_error == ERROR_NO_CATALOG_FOR_OEM_INF)
+		{
+			err("ERROR_NO_CATALOG_FOR_OEM_INF might be caused by not installed Driver Certificates");
+		}
 		goto error;
 	}
 
