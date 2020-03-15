@@ -123,14 +123,21 @@ static BOOL usbip_install_get_hardware_id(char *buffer, DWORD buffer_size,
 	return TRUE;
 }
 
-static BOOL usbip_install_remove_device(HDEVINFO devinfoset,
-		const struct usbip_install_devinfo_struct *dev_data)
+static BOOL usbip_install_remove_device(const struct usbip_install_devinfo_struct *dev_data)
 {
-	assert(devinfoset != NULL);
 	assert(dev_data != NULL);
 
+	HDEVINFO devinfoset = { 0 };
 	SP_DEVINFO_DATA devinfo_data = { 0 };
 	devinfo_data.cbSize = sizeof(SP_DEVINFO_DATA);
+
+	devinfoset = SetupDiCreateDeviceInfoList(NULL, NULL);
+	if (devinfoset == INVALID_HANDLE_VALUE) {
+		return FALSE;
+	}
+
+	// from now on use goto error so that we wont leak devinfoset
+
 	const BOOL open_ok = SetupDiOpenDeviceInfo(devinfoset,
 		dev_data->dev_instance_path,
 		GetConsoleWindow(),
@@ -138,7 +145,7 @@ static BOOL usbip_install_remove_device(HDEVINFO devinfoset,
 		&devinfo_data);
 	if (!open_ok) {
 		err("Cannot open DeviceInfo, code %u", GetLastError());
-		return FALSE;
+		goto error;
 	}
 	const BOOL uninstall_ok = DiUninstallDevice(GetConsoleWindow(),
 		devinfoset,
@@ -146,9 +153,15 @@ static BOOL usbip_install_remove_device(HDEVINFO devinfoset,
 		0, FALSE);
 	if (!uninstall_ok) {
 		err("Cannot uninstall existing device!");
-		return FALSE;
+		goto error;
 	}
+
+	SetupDiDestroyDeviceInfoList(devinfoset);
 	return TRUE;
+
+error:
+	SetupDiDestroyDeviceInfoList(devinfoset);
+	return FALSE;
 }
 
 static int usbip_install_base(struct usbip_install_devinfo_struct *data)
@@ -204,11 +217,16 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 			&devinfo_data);
 		if (!result_ok) {
 			last_error = GetLastError();
+			if (last_error == ERROR_ACCESS_DENIED) {
+				err("Access Denied - make sure you are running as Administrator");
+				goto error;
+			}
+
 			if (last_error != ERROR_DEVINST_ALREADY_EXISTS) {
 				err("Cannot get DeviceInfo. Remove device manually by Device Manager, restart PC and try again");
 				goto error;
 			}
-			result_ok = usbip_install_remove_device(devinfoset, data);
+			result_ok = usbip_install_remove_device(data);
 			if (!result_ok) {
 				err("Cannot get DeviceInfo. Remove device manually by Device Manager, restart PC and try again");
 				goto error;
