@@ -126,6 +126,7 @@ static BOOL usbip_install_get_hardware_id(char *buffer, DWORD buffer_size,
 static BOOL usbip_install_remove_device(const struct usbip_install_devinfo_struct *dev_data)
 {
 	assert(dev_data != NULL);
+	info("Removing previous instance of %s", dev_data->dev_instance_path);
 
 	HDEVINFO devinfoset = { 0 };
 	SP_DEVINFO_DATA devinfo_data = { 0 };
