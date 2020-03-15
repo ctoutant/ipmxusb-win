@@ -126,7 +126,7 @@ static BOOL usbip_install_get_hardware_id(char *buffer, DWORD buffer_size,
 static BOOL usbip_install_remove_device(const struct usbip_install_devinfo_struct *dev_data)
 {
 	assert(dev_data != NULL);
-	info("Removing previous instance of %s", dev_data->dev_instance_path);
+	info("removing instance of %s", dev_data->dev_instance_path);
 
 	HDEVINFO devinfoset = { 0 };
 	SP_DEVINFO_DATA devinfo_data = { 0 };
@@ -172,6 +172,7 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 	char inf_file[BUFFER_SIZE] = { 0 };
 	char hw_id[BUFFER_SIZE] = { 0 };
 	char dev_decription[BUFFER_SIZE] = { 0 };
+	BOOL device_created = FALSE;
 
 	HDEVINFO devinfoset = { 0 };
 	SP_DEVINFO_DATA devinfo_data = { 0 };
@@ -237,6 +238,7 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 		break;
 	} while (TRUE);
 
+	device_created = TRUE;
 	result_ok = usbip_install_get_hardware_id(hw_id, BUFFER_SIZE - 1,
 		inf_handle, data);
 	if (!result_ok) {
@@ -276,6 +278,14 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 error:
 	err("Cannot install usbip_vhci driver");
 	SetupDiDestroyDeviceInfoList(devinfoset);
+
+	if (device_created) {
+		result_ok = usbip_install_remove_device(data);
+		if (!result_ok) {
+			err("Cannot get DeviceInfo. Remove device manually by Device Manager, restart PC and try again");
+		}
+	}
+
 	return 1;
 }
 
