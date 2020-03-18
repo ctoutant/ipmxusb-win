@@ -138,31 +138,28 @@ static BOOL usbip_install_remove_device(const struct usbip_install_devinfo_struc
 	}
 
 	// from now on use goto error so that we wont leak devinfoset
-
-	const BOOL open_ok = SetupDiOpenDeviceInfo(devinfoset,
+	BOOL result_ok = result_ok = SetupDiOpenDeviceInfo(devinfoset,
 		dev_data->dev_instance_path,
 		GetConsoleWindow(),
 		0,
 		&devinfo_data);
-	if (!open_ok) {
+	if (!result_ok) {
 		err("Cannot open DeviceInfo, code %u", GetLastError());
 		goto error;
 	}
-	const BOOL uninstall_ok = DiUninstallDevice(GetConsoleWindow(),
+
+	result_ok = DiUninstallDevice(GetConsoleWindow(),
 		devinfoset,
 		&devinfo_data,
 		0, FALSE);
-	if (!uninstall_ok) {
+	if (!result_ok) {
 		err("Cannot uninstall existing device!");
 		goto error;
 	}
 
-	SetupDiDestroyDeviceInfoList(devinfoset);
-	return TRUE;
-
 error:
 	SetupDiDestroyDeviceInfoList(devinfoset);
-	return FALSE;
+	return result_ok;
 }
 
 static int usbip_install_base(struct usbip_install_devinfo_struct *data)
