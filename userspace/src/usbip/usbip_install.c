@@ -269,9 +269,8 @@ static int usbip_install_base(struct usbip_install_devinfo_struct *data)
 		FALSE);
 	if (!result_ok) {
 		last_error = GetLastError();
-		err("inf file install failed %u", last_error);
-		if (last_error == ERROR_NO_CATALOG_FOR_OEM_INF)
-		{
+		err("%s: UpdateDriverForPlugAndPlayDevices failed: status: %x", __FUNCTION__, last_error);
+		if (last_error == ERROR_NO_CATALOG_FOR_OEM_INF) {
 			err("Missing .cat file");
 		}
 		goto error;
