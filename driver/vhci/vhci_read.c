@@ -740,7 +740,7 @@ store_urbr(PIRP irp, struct urb_req *urbr)
 static VOID
 on_pending_irp_read_cancelled(PDEVICE_OBJECT devobj, PIRP irp_read)
 {
-	DBGI(DBG_READ, "pending irp read cancelled");
+	DBGI(DBG_READ, "pending irp read cancelled %p", irp_read);
 
 	KIRQL	oldirql;
 	pusbip_vpdo_dev_t	vpdo;
