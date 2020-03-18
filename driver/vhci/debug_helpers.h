@@ -7,17 +7,8 @@
 #define DBGI_FUN(part, fmt, ...) \
     DBGI(part, __FUNCTION__ "@" __LINE__ fmt, ## __VA_ARGS__)
 
-VOID IoCompleteRequest_debug(
-    _In_ PIRP Irp,
-    _In_ CCHAR PriorityBoost
-)
-{
-    DBGI(DBG_GENERAL, "IoCompleteRequest");
-    IofCompleteRequest(Irp, PriorityBoost);
-}
-
-
 #undef IoCompleteRequest
 #define IoCompleteRequest(a,b) \
-    IoCompleteRequest_debug(a, b)
-        
+    DBGI_FUN(DBG_GENERAL, "IoCompleteRequest %p boost? %u", a, b); \
+    IofCompleteRequest(a, b)
+     
