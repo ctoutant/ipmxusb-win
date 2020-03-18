@@ -136,42 +136,42 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <PostBuildEvent>
-      <Command>xcopy $(TargetDir)$(ProjectName)\$(ProjectName).cat $(TargetDir) /Y</Command>
+      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <PostBuildEvent>
-      <Message>copies cat to OutDir as the inf2cat ignores OutDir</Message>
+      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <PostBuildEvent>
-      <Command>xcopy $(TargetDir)$(ProjectName)\$(ProjectName).cat $(TargetDir) /Y</Command>
+      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <PostBuildEvent>
-      <Message>copies cat to OutDir as the inf2cat ignores OutDir</Message>
+      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <PostBuildEvent>
-      <Command>xcopy $(TargetDir)$(ProjectName)\$(ProjectName).cat $(TargetDir) /Y</Command>
+      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <PostBuildEvent>
-      <Message>copies cat to OutDir as the inf2cat ignores OutDir</Message>
+      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <PostBuildEvent>
-      <Command>xcopy $(TargetDir)$(ProjectName)\$(ProjectName).cat $(TargetDir) /Y</Command>
+      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <PostBuildEvent>
-      <Message>copies cat to OutDir as the inf2cat ignores OutDir</Message>
+      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
