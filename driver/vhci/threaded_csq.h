@@ -64,7 +64,6 @@ inline NTSTATUS threaded_csq_init(_In_ pthreaded_csq ctx,
 
 	if (!NT_SUCCESS(status))
 	{
-		//nth log error
 		return status;
 	}
 

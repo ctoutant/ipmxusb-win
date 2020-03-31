@@ -689,7 +689,7 @@ complete_pending_irp(pusbip_vpdo_dev_t vpdo)
 
 NTSTATUS vhci_internal_ioctl_process(__in PVOID context, __in PIRP Irp);
 
-PAGEABLE void
+PAGEABLE NTSTATUS
 vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 {
 	pusbip_vhub_dev_t	vhub;
@@ -714,7 +714,11 @@ vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 	KeInitializeSpinLock(&vpdo->lock_urbr);
 
 	// csq for internal ioctl - those can be at DPC, so we need to queue them for sane PASSIVE_LEVEL processing
-	status = threaded_csq_init(&vpdo->irp_internal_csq, vhci_internal_ioctl_process, vpdo); // bad
+	status = threaded_csq_init(&vpdo->irp_internal_csq, vhci_internal_ioctl_process, vpdo);
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
 
 	DEVOBJ_FROM_VPDO(vpdo)->Flags |= DO_POWER_PAGABLE|DO_DIRECT_IO;
 
@@ -725,6 +729,7 @@ vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 	ExReleaseFastMutex(&vhub->Mutex);
 	// This should be the last step in initialization.
 	DEVOBJ_FROM_VPDO(vpdo)->Flags &= ~DO_DEVICE_INITIALIZING;
+	return STATUS_SUCCESS;
 }
 
 PAGEABLE NTSTATUS
