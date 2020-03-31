@@ -44,10 +44,18 @@ vhci_ioctl_abort_pipe(pusbip_vpdo_dev_t vpdo, USBD_PIPE_HANDLE hPipe)
 
 		if (urbr_local->irp) {
 			PIRP	irp = urbr_local->irp;
+			BOOLEAN	valid_irp;
 
-			IoSetCancelRoutine(irp, NULL);
-			irp->IoStatus.Status = STATUS_CANCELLED;
-			IoCompleteRequest(irp, IO_NO_INCREMENT);
+			KIRQL oldirql_cancel;
+			IoAcquireCancelSpinLock(&oldirql_cancel);
+			valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
+			IoReleaseCancelSpinLock(oldirql_cancel);
+
+			if (valid_irp) {
+				irp->IoStatus.Status = STATUS_CANCELLED;
+				irp->IoStatus.Information = 0;
+				IoCompleteRequest(irp, IO_NO_INCREMENT);
+			}
 		}
 		RemoveEntryListInit(&urbr_local->list_state);
 		RemoveEntryListInit(&urbr_local->list_all);
@@ -115,7 +123,12 @@ process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	case URB_FUNCTION_SELECT_INTERFACE:
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+#if USING_CSQ_WITH_THREAD
+		threaded_csq_insert_irp(&vpdo->irp_internal_csq, irp);
+		return STATUS_PENDING;
+#else
 		return submit_urbr_irp(vpdo, irp);
+#endif
 	default:
 		DBGW(DBG_IOCTL, "process_irp_urb_req: unhandled function: %s: len: %d\n",
 			dbg_urbfunc(urb->UrbHeader.Function), urb->UrbHeader.Length);
@@ -133,7 +146,22 @@ setup_topology_address(pusbip_vpdo_dev_t vpdo, PIO_STACK_LOCATION irpStack)
 	return STATUS_SUCCESS;
 }
 
-PAGEABLE NTSTATUS
+NTSTATUS
+vhci_internal_ioctl_process(__in PVOID context, __in PIRP Irp)
+{
+	pusbip_vpdo_dev_t vpdo = (pusbip_vpdo_dev_t)context;
+	NTSTATUS status;
+
+	status = submit_urbr_irp(vpdo, Irp);
+	if (status != STATUS_PENDING) {
+		Irp->IoStatus.Information = 0;
+		Irp->IoStatus.Status = status;
+		IoCompleteRequest(Irp, IO_NO_INCREMENT);
+	}
+	return status;
+}
+
+NTSTATUS
 vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 {
 	PIO_STACK_LOCATION      irpStack;
@@ -176,7 +204,12 @@ vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_ENABLED | USBD_PORT_CONNECTED;
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
+#if USING_CSQ_WITH_THREAD
+		threaded_csq_insert_irp(&vpdo->irp_internal_csq, Irp);
+		status = STATUS_PENDING;
+#else
 		status = submit_urbr_irp(vpdo, Irp);
+#endif
 		break;
 	case IOCTL_INTERNAL_USB_GET_TOPOLOGY_ADDRESS:
 		status = setup_topology_address(vpdo, irpStack);
@@ -213,12 +246,13 @@ vhci_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 
 	devcom = (pdev_common_t)devobj->DeviceExtension;
 
-	DBGI(DBG_GENERAL | DBG_IOCTL, "vhci_ioctl: Enter\n");
+	DBGI(DBG_GENERAL | DBG_IOCTL, "vhci_ioctl: Enter %p\n", Irp);
 
 	// We only allow create/close requests for the vhub.
 	if (!devcom->is_vhub) {
 		DBGE(DBG_IOCTL, "ioctl for vhub is not allowed\n");
 
+		Irp->IoStatus.Information = 0;
 		Irp->IoStatus.Status = status = STATUS_INVALID_DEVICE_REQUEST;
 		IoCompleteRequest(Irp, IO_NO_INCREMENT);
 		return status;

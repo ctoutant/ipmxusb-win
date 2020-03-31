@@ -3,6 +3,8 @@
 #include <ntddk.h>
 #include <wmilib.h>	// required for WMILIB_CONTEXT
 
+#include "threaded_csq.h"
+
 #include "vhci_devconf.h"
 
 #define DEVOBJ_FROM_VPDO(vpdo)	((vpdo)->common.Self)
@@ -128,6 +130,7 @@ typedef struct
 	LONG	InterfaceRefCount;
 	// a pending irp when no urb is requested
 	PIRP	pending_read_irp;
+	BOOLEAN	pending_read_irp_cancellable;
 	// a partially transferred urb_req
 	struct urb_req	*urbr_sent_partial;
 	// a partially transferred length of urbr_sent_partial
@@ -157,12 +160,7 @@ typedef struct
 	//
 	// The queue where the incoming requests are held when
 	// the device is stopped for resource rebalance.
-
-	//LIST_ENTRY	PendingQueue;
-
-	// The spin lock that protects access to  the queue
-
-	//KSPIN_LOCK	PendingQueueLock;
+	threaded_csq irp_internal_csq;
 } usbip_vpdo_dev_t, *pusbip_vpdo_dev_t;
 
 void inc_io_vhub(__in pusbip_vhub_dev_t vhub);

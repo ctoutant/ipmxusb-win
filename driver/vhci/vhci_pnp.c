@@ -169,6 +169,7 @@ destroy_vpdo(pusbip_vpdo_dev_t vpdo)
 	if (vpdo->winstid != NULL)
 		ExFreePoolWithTag(vpdo->winstid, USBIP_VHCI_POOL_TAG);
 
+	threaded_csq_cleanup(&vpdo->irp_internal_csq);
 	// VHCI does not queue any irps at this time so we have nothing to do.
 	// Free any resources.
 
@@ -617,80 +618,82 @@ complete_pending_read_irp(pusbip_vpdo_dev_t vpdo)
 {
 	KIRQL	oldirql;
 	PIRP	irp;
+	BOOLEAN cancellable;
 
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
 	irp = vpdo->pending_read_irp;
 	vpdo->pending_read_irp = NULL;
+	cancellable = vpdo->pending_read_irp_cancellable;
+	vpdo->pending_read_irp_cancellable = FALSE;
 	KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
 
 	if (irp != NULL) {
-		irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
-		IoSetCancelRoutine(irp, NULL);
-		KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
-		IoCompleteRequest(irp, IO_NO_INCREMENT);
-		KeLowerIrql(oldirql);
+		// We got pending_read_irp before submit_urbr
+		if (cancellable) {
+			BOOLEAN valid_irp;
+			IoAcquireCancelSpinLock(&oldirql);
+			valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
+			IoReleaseCancelSpinLock(oldirql);
+			if (valid_irp) {
+				irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
+				irp->IoStatus.Information = 0;
+				IoCompleteRequest(irp, IO_NO_INCREMENT);
+			}
+		}
 	}
 }
 
 static void
 complete_pending_irp(pusbip_vpdo_dev_t vpdo)
 {
-	int	count = 0;
 	KIRQL	oldirql;
+	BOOLEAN	valid_irp;
 
-	//FIXME
-	DBGI(DBG_PNP, "finish pending irp\n");
-	KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
-	do {
+	DBGI(DBG_PNP, "finish pending irp");
+	
+	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
+	while(!IsListEmpty(&vpdo->head_urbr)) {
 		struct urb_req	*urbr;
 		PIRP	irp;
-		KIRQL	oldirql2;
-
-		KeAcquireSpinLockAtDpcLevel(&vpdo->lock_urbr);
-		if (IsListEmpty(&vpdo->head_urbr)) {
-			vpdo->urbr_sent_partial = NULL;
-			vpdo->len_sent_partial = 0;
-			InitializeListHead(&vpdo->head_urbr_sent);
-			InitializeListHead(&vpdo->head_urbr_pending);
-
-			KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
-			break;
-		}
 
 		urbr = CONTAINING_RECORD(vpdo->head_urbr.Flink, struct urb_req, list_all);
 		RemoveEntryListInit(&urbr->list_all);
 		RemoveEntryListInit(&urbr->list_state);
 		/* FIMXE event */
+		KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+
 		irp = urbr->irp;
-
-		if (count > 2) {
-			LARGE_INTEGER	interval;
-
-			KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
-			DBGI(DBG_PNP, "sleep 50ms, let pnp manager send irp");
-			interval.QuadPart = -500000;
-			KeDelayExecutionThread(KernelMode, FALSE, &interval);
-			KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
-		} else {
-			KeReleaseSpinLock(&vpdo->lock_urbr, DISPATCH_LEVEL);
-		}
-
 		free_urbr(urbr);
 		if (irp != NULL) {
-			irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
-			IoSetCancelRoutine(irp, NULL);
-			KeRaiseIrql(DISPATCH_LEVEL, &oldirql2);
-			IoCompleteRequest(irp, IO_NO_INCREMENT);
-			KeLowerIrql(oldirql2);
+			// urbr irps have cancel routine
+			IoAcquireCancelSpinLock(&oldirql);
+			valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
+			IoReleaseCancelSpinLock(oldirql);
+			if (valid_irp) {
+				irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
+				irp->IoStatus.Information = 0;
+				IoCompleteRequest(irp, IO_NO_INCREMENT);
+			}
 		}
-		count++;
-	} while (1);
+
+		KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
+	};
+	
+	vpdo->urbr_sent_partial = NULL; // sure?
+	vpdo->len_sent_partial = 0;
+	InitializeListHead(&vpdo->head_urbr_sent);
+	InitializeListHead(&vpdo->head_urbr_pending);
+
+	KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
 }
+
+NTSTATUS vhci_internal_ioctl_process(__in PVOID context, __in PIRP Irp);
 
 PAGEABLE void
 vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 {
 	pusbip_vhub_dev_t	vhub;
+	NTSTATUS status;
 
 	PAGED_CODE();
 
@@ -709,6 +712,9 @@ vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 	InitializeListHead(&vpdo->head_urbr_pending);
 	InitializeListHead(&vpdo->head_urbr_sent);
 	KeInitializeSpinLock(&vpdo->lock_urbr);
+
+	// csq for internal ioctl - those can be at DPC, so we need to queue them for sane PASSIVE_LEVEL processing
+	status = threaded_csq_init(&vpdo->irp_internal_csq, vhci_internal_ioctl_process, vpdo); // bad
 
 	DEVOBJ_FROM_VPDO(vpdo)->Flags |= DO_POWER_PAGABLE|DO_DIRECT_IO;
 
@@ -738,6 +744,7 @@ vhci_get_ports_status(ioctl_usbip_vhci_get_ports_status *st, pusbip_vhub_dev_t v
 		vpdo = CONTAINING_RECORD (entry, usbip_vpdo_dev_t, Link);
 		if (vpdo->port > 127 || vpdo->port == 0) {
 			DBGE(DBG_PNP, "strange error");
+			continue;
 		}
 		if (st->u.max_used_port < (char)vpdo->port)
 			st->u.max_used_port = (char)vpdo->port;
