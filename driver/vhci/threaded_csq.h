@@ -101,5 +101,3 @@ inline VOID threaded_csq_insert_irp(_In_ pthreaded_csq ctx, _In_ PIRP irp)
 	IoCsqInsertIrp(&ctx->irp_csq, irp, NULL);
 	KeReleaseSemaphore(&ctx->thread_semaphore, 0, 1, FALSE);
 }
-
-#define USING_CSQ_WITH_THREAD 1

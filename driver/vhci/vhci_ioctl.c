@@ -123,12 +123,8 @@ process_irp_urb_req(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
 	case URB_FUNCTION_SELECT_INTERFACE:
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 	case URB_FUNCTION_CONTROL_TRANSFER_EX:
-#if USING_CSQ_WITH_THREAD
 		threaded_csq_insert_irp(&vpdo->irp_internal_csq, irp);
 		return STATUS_PENDING;
-#else
-		return submit_urbr_irp(vpdo, irp);
-#endif
 	default:
 		DBGW(DBG_IOCTL, "process_irp_urb_req: unhandled function: %s: len: %d\n",
 			dbg_urbfunc(urb->UrbHeader.Function), urb->UrbHeader.Length);
@@ -204,12 +200,8 @@ vhci_internal_ioctl(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
 		*(unsigned long *)irpStack->Parameters.Others.Argument1 = USBD_PORT_ENABLED | USBD_PORT_CONNECTED;
 		break;
 	case IOCTL_INTERNAL_USB_RESET_PORT:
-#if USING_CSQ_WITH_THREAD
 		threaded_csq_insert_irp(&vpdo->irp_internal_csq, Irp);
 		status = STATUS_PENDING;
-#else
-		status = submit_urbr_irp(vpdo, Irp);
-#endif
 		break;
 	case IOCTL_INTERNAL_USB_GET_TOPOLOGY_ADDRESS:
 		status = setup_topology_address(vpdo, irpStack);
