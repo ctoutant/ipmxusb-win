@@ -88,6 +88,8 @@
     <Inf2CatVerbose>true</Inf2CatVerbose>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <IntDir>$(SolutionDir)$(ConfigurationName)\$(Platform)\$(ProjectName)\</IntDir>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -103,6 +105,8 @@
     <Inf2CatVerbose>true</Inf2CatVerbose>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <IntDir>$(SolutionDir)$(ConfigurationName)\$(Platform)\$(ProjectName)\</IntDir>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -118,6 +122,8 @@
     <Inf2CatVerbose>true</Inf2CatVerbose>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <IntDir>$(SolutionDir)$(ConfigurationName)\$(Platform)\$(ProjectName)\</IntDir>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -133,48 +139,44 @@
     <Inf2CatVerbose>true</Inf2CatVerbose>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <IntDir>$(SolutionDir)$(ConfigurationName)\$(Platform)\$(ProjectName)\</IntDir>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <PostBuildEvent>
-      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <PostBuildEvent>
-      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>del /s /q "$(Inf2CatSource)\*.tlog"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <PostBuildEvent>
-      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <PostBuildEvent>
-      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>del /s /q "$(Inf2CatSource)\*.tlog"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <PostBuildEvent>
-      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>del /s /q "$(Inf2CatSource)\*.tlog"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <PostBuildEvent>
-      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <PostBuildEvent>
-      <Command>xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y</Command>
+      <Message>
+      </Message>
     </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <PostBuildEvent>
-      <Message>copies cat to OutDir, inf2cat ignores OutDir</Message>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>del /s /q "$(Inf2CatSource)\*.tlog"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="CopyToOutput" AfterTargets="Inf2Cat">
+    <Message Text="copy to output" />
+    <Exec Command="xcopy $(IntDir)\usbip_vhci.cat $(OutDir) /Y" />
+  </Target>
 </Project>
