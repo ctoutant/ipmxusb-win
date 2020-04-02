@@ -520,6 +520,65 @@ store_urb_iso(PIRP irp, PURB urb, struct urb_req *urbr)
 }
 
 static NTSTATUS
+store_urb_control_transfer_ex_partial(pusbip_vpdo_dev_t vpdo, PIRP irp, PURB urb)
+{
+	struct _URB_CONTROL_TRANSFER_EX	*urb_control_ex = &urb->UrbControlTransferEx;
+	PVOID	dst;
+	char	*buf;
+
+	dst = get_read_irp_data(irp, urb_control_ex->TransferBufferLength);
+	if (dst == NULL)
+		return STATUS_BUFFER_TOO_SMALL;
+
+	/*
+	 * reading from TransferBuffer or TransferBufferMDL,
+	 * whichever of them is not null
+	 */
+	buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
+	if (buf == NULL)
+		return STATUS_INSUFFICIENT_RESOURCES;
+	RtlCopyMemory(dst, buf, urb_control_ex->TransferBufferLength);
+	irp->IoStatus.Information = urb_control_ex->TransferBufferLength;
+	vpdo->len_sent_partial = 0;
+
+	return STATUS_SUCCESS;
+}
+
+static NTSTATUS
+store_urb_control_transfer_ex(PIRP irp, PURB urb, struct urb_req* urbr)
+{
+	struct _URB_CONTROL_TRANSFER_EX	*urb_control_ex = &urb->UrbControlTransferEx;
+	struct usbip_header	*hdr;
+	int	in = PIPE2DIRECT(urb_control_ex->PipeHandle);
+
+	hdr = get_usbip_hdr_from_read_irp(irp);
+	if (hdr == NULL) {
+		DBGE(DBG_READ, "Cannot get usbip header\n");
+		return STATUS_BUFFER_TOO_SMALL;
+	}
+
+	set_cmd_submit_usbip_header(hdr, urbr->seq_num, urbr->vpdo->devid, in, urb_control_ex->PipeHandle,
+		urb_control_ex->TransferFlags | USBD_SHORT_TRANSFER_OK, urb_control_ex->TransferBufferLength);
+	RtlCopyMemory(hdr->u.cmd_submit.setup, urb_control_ex->SetupPacket, 8);
+
+	irp->IoStatus.Information = sizeof(struct usbip_header);
+
+	if (!in) {
+		if (get_read_payload_length(irp) >= urb_control_ex->TransferBufferLength) {
+			PVOID buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
+			if (buf == NULL)
+				return STATUS_INSUFFICIENT_RESOURCES;
+			RtlCopyMemory(hdr + 1, buf, urb_control_ex->TransferBufferLength);
+		}
+		else {
+			urbr->vpdo->len_sent_partial = sizeof(struct usbip_header);
+		}
+	}
+
+	return STATUS_SUCCESS;
+}
+
+static NTSTATUS
 store_urbr_submit(PIRP irp, struct urb_req *urbr)
 {
 	PURB	urb;
@@ -572,6 +631,9 @@ store_urbr_submit(PIRP irp, struct urb_req *urbr)
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 		status = store_urb_reset_pipe(irp, urb, urbr);
 		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer_ex(irp, urb, urbr);
+		break;
 	default:
 		irp->IoStatus.Information = 0;
 		DBGE(DBG_READ, "unhandled urb function: %s\n", dbg_urbfunc(code_func));
@@ -611,6 +673,9 @@ store_urbr_partial(PIRP irp, struct urb_req *urbr)
 	case URB_FUNCTION_VENDOR_INTERFACE:
 	case URB_FUNCTION_VENDOR_ENDPOINT:
 		status = store_urb_class_vendor_partial(urbr->vpdo, irp, urb);
+		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer_ex_partial(urbr->vpdo, irp, urb);
 		break;
 	default:
 		irp->IoStatus.Information = 0;
@@ -672,6 +737,35 @@ store_urbr(PIRP irp, struct urb_req *urbr)
 	return status;
 }
 
+static VOID
+on_pending_irp_read_cancelled(PDEVICE_OBJECT devobj, PIRP irp_read)
+{
+	UNREFERENCED_PARAMETER(devobj);
+	DBGI(DBG_READ, "pending irp read cancelled");
+
+	KIRQL	oldirql;
+	PIO_STACK_LOCATION	irpstack;
+	pusbip_vpdo_dev_t	vpdo;
+
+	irpstack = IoGetCurrentIrpStackLocation(irp_read);
+	vpdo = irpstack->FileObject->FsContext;
+
+	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
+	if (vpdo->pending_read_irp == irp_read) {
+		vpdo->pending_read_irp = NULL;
+		KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+		IoReleaseCancelSpinLock(irp_read->CancelIrql);
+
+		irp_read->IoStatus.Status = STATUS_CANCELLED;
+		IoCompleteRequest(irp_read, IO_NO_INCREMENT);
+	}
+	else {
+		KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
+		IoReleaseCancelSpinLock(irp_read->CancelIrql);
+		DBGI(DBG_READ, "cancelled IRP already handled in other thread");
+	}
+}
+
 static NTSTATUS
 process_read_irp(pusbip_vpdo_dev_t vpdo, PIRP read_irp)
 {
@@ -698,6 +792,7 @@ process_read_irp(pusbip_vpdo_dev_t vpdo, PIRP read_irp)
 	else {
 		urbr = find_pending_urbr(vpdo);
 		if (urbr == NULL) {
+			IoSetCancelRoutine(read_irp, on_pending_irp_read_cancelled);
 			IoMarkIrpPending(read_irp);
 			vpdo->pending_read_irp = read_irp;
 			KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
