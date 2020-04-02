@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="threaded_csq.c" />
     <ClCompile Include="vhci.c" />
     <ClCompile Include="vhci_dbg.c" />
     <ClCompile Include="vhci_devconf.c" />
@@ -38,7 +37,6 @@
     <ClInclude Include="..\..\include\usbip_vhci_api.h" />
     <ClInclude Include="..\..\include\usbip_proto.h" />
     <ClInclude Include="basetype.h" />
-    <ClInclude Include="threaded_csq.h" />
     <ClInclude Include="vhci.h" />
     <ClInclude Include="vhci_dbg.h" />
     <ClInclude Include="vhci_dev.h" />

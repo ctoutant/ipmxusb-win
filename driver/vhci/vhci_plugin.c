@@ -16,7 +16,7 @@ DEFINE_GUID(GUID_SD_USBIP_VHCI_VPDO,
 	0x9d3039dd, 0xcca5, 0x4b4d, 0xb3, 0x3d, 0xe2, 0xdd, 0xc8, 0xa8, 0xc5, 0x2e);
 // {9D3039DD-CCA5-4b4d-B33D-E2DDC8A8C52E}
 
-extern PAGEABLE NTSTATUS
+extern PAGEABLE void
 vhci_init_vpdo(pusbip_vpdo_dev_t vpdo);
 
 PAGEABLE NTSTATUS
@@ -100,13 +100,7 @@ vhci_plugin_dev(ioctl_usbip_vhci_plugin *plugin, pusbip_vhub_dev_t vhub, PFILE_O
 	vpdo->common.Self = devobj;
 	vpdo->vhub = vhub;
 
-	status = vhci_init_vpdo(vpdo);
-	if (!NT_SUCCESS(status))
-	{
-		DBGE(DBG_GENERAL, "Failed to create vpdo (0x%x)\n", status);
-		IoDeleteDevice(devobj);
-		return status;
-	}
+	vhci_init_vpdo(vpdo);
 
 	// Device Relation changes if a new vpdo is created. So let
 	// the PNP system now about that. This forces it to send bunch of pnp
