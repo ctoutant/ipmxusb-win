@@ -10,7 +10,7 @@ typedef struct _threaded_csq {
 	PETHREAD thread;
 	// Something to wait on, so we avoid busy-wait in thread
 	KSEMAPHORE thread_semaphore;
-	BOOLEAN thread_stop;
+	volatile BOOLEAN thread_stop;
 
 	IO_CSQ irp_csq;
 	LIST_ENTRY irp_csq_list;

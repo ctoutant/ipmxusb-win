@@ -220,7 +220,7 @@ submit_urbr(pusbip_vpdo_dev_t vpdo, struct urb_req *urbr)
 			IoAcquireCancelSpinLock(&oldirql_cancel);
 			IoSetCancelRoutine(urbr->irp, cancel_urbr);
 			IoReleaseCancelSpinLock(oldirql_cancel);
-			// dont IoMarkIrpPending here as the irp was already marked when was queued on CSQ
+			IoMarkIrpPending(urbr->irp);
 		}
 		InsertTailList(&vpdo->head_urbr_pending, &urbr->list_state);
 		InsertTailList(&vpdo->head_urbr, &urbr->list_all);
@@ -260,7 +260,7 @@ submit_urbr(pusbip_vpdo_dev_t vpdo, struct urb_req *urbr)
 			IoAcquireCancelSpinLock(&oldirql_cancel);
 			IoSetCancelRoutine(urbr->irp, cancel_urbr);
 			IoReleaseCancelSpinLock(oldirql_cancel);
-			// dont IoMarkIrpPending here as the irp was already marked when was queued on CSQ
+			IoMarkIrpPending(urbr->irp);
 		}
 		if (vpdo->len_sent_partial == 0) {
 			vpdo->urbr_sent_partial = NULL;
