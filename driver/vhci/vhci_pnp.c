@@ -169,7 +169,6 @@ destroy_vpdo(pusbip_vpdo_dev_t vpdo)
 	if (vpdo->winstid != NULL)
 		ExFreePoolWithTag(vpdo->winstid, USBIP_VHCI_POOL_TAG);
 
-	threaded_csq_cleanup(&vpdo->irp_internal_csq);
 	// VHCI does not queue any irps at this time so we have nothing to do.
 	// Free any resources.
 
@@ -691,7 +690,6 @@ PAGEABLE void
 vhci_init_vpdo(pusbip_vpdo_dev_t vpdo)
 {
 	pusbip_vhub_dev_t	vhub;
-	NTSTATUS status;
 
 	PAGED_CODE();
 
