@@ -622,8 +622,6 @@ complete_pending_read_irp(pusbip_vpdo_dev_t vpdo)
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
 	irp = vpdo->pending_read_irp;
 	vpdo->pending_read_irp = NULL;
-	cancellable = vpdo->pending_read_irp_cancellable;
-	vpdo->pending_read_irp_cancellable = FALSE;
 	KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
 
 	if (irp != NULL) {

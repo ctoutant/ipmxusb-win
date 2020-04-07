@@ -128,7 +128,6 @@ typedef struct
 	LONG	InterfaceRefCount;
 	// a pending irp when no urb is requested
 	PIRP	pending_read_irp;
-	BOOLEAN	pending_read_irp_cancellable;
 	// a partially transferred urb_req
 	struct urb_req	*urbr_sent_partial;
 	// a partially transferred length of urbr_sent_partial

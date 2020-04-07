@@ -783,7 +783,6 @@ process_read_irp(pusbip_vpdo_dev_t vpdo, PIRP read_irp)
 		urbr = find_pending_urbr(vpdo);
 		if (urbr == NULL) {
 			vpdo->pending_read_irp = read_irp;
-			vpdo->pending_read_irp_cancellable = TRUE;
 
 			KIRQL oldirql_cancel;
 			IoAcquireCancelSpinLock(&oldirql_cancel);

@@ -238,11 +238,9 @@ submit_urbr(pusbip_vpdo_dev_t vpdo, struct urb_req *urbr)
 		DBGI(DBG_URB, "submit_urbr: read irp was cancelled");
 		status = STATUS_INVALID_PARAMETER;
 		vpdo->pending_read_irp = NULL;
-		vpdo->pending_read_irp_cancellable = FALSE;
 		KeReleaseSpinLock(&vpdo->lock_urbr, oldirql);
 		return status;
 	}
-	vpdo->pending_read_irp_cancellable = FALSE;
 
 	read_irp = vpdo->pending_read_irp;
 	vpdo->urbr_sent_partial = urbr;
