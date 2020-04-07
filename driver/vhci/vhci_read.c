@@ -751,6 +751,13 @@ on_pending_irp_read_cancelled(PDEVICE_OBJECT devobj, PIRP irp_read)
 	irpstack = IoGetCurrentIrpStackLocation(irp_read);
 	vpdo = irpstack->FileObject->FsContext;
 
+	KIRQL irql;
+	KeAcquireSpinLock(&vpdo->lock_urbr, &irql);
+	if (vpdo->pending_read_irp == irp_read) {
+		vpdo->pending_read_irp = NULL;
+	}
+	KeReleaseSpinLock(&vpdo->lock_urbr, irql);
+
 	irp_read->IoStatus.Status = STATUS_CANCELLED;
 	irp_read->IoStatus.Information = 0;
 	IoCompleteRequest(irp_read, IO_NO_INCREMENT);
