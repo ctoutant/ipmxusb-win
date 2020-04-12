@@ -617,7 +617,6 @@ complete_pending_read_irp(pusbip_vpdo_dev_t vpdo)
 {
 	KIRQL	oldirql;
 	PIRP	irp;
-	BOOLEAN cancellable;
 
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
 	irp = vpdo->pending_read_irp;
@@ -626,16 +625,14 @@ complete_pending_read_irp(pusbip_vpdo_dev_t vpdo)
 
 	if (irp != NULL) {
 		// We got pending_read_irp before submit_urbr
-		if (cancellable) {
-			BOOLEAN valid_irp;
-			IoAcquireCancelSpinLock(&oldirql);
-			valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
-			IoReleaseCancelSpinLock(oldirql);
-			if (valid_irp) {
-				irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
-				irp->IoStatus.Information = 0;
-				IoCompleteRequest(irp, IO_NO_INCREMENT);
-			}
+		BOOLEAN valid_irp;
+		IoAcquireCancelSpinLock(&oldirql);
+		valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
+		IoReleaseCancelSpinLock(oldirql);
+		if (valid_irp) {
+			irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
+			irp->IoStatus.Information = 0;
+			IoCompleteRequest(irp, IO_NO_INCREMENT);
 		}
 	}
 }
