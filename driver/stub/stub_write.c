@@ -101,6 +101,32 @@ process_get_desc(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_t *cs
 }
 
 static void
+process_clear_feature(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_t *csp)
+{
+	PUSBD_PIPE_INFORMATION	info_pipe;
+
+	DBGI(DBG_READWRITE, "clear_feature: %s\n", dbg_cspkt_recipient(CSPKT_RECIPIENT(csp)));
+
+	switch (CSPKT_RECIPIENT(csp)) {
+	case BMREQUEST_TO_ENDPOINT:
+		info_pipe = get_info_pipe(devstub->devconf, (UCHAR)csp->wIndex.W);
+		if (info_pipe) {
+			reset_pipe(devstub, info_pipe->PipeHandle);
+			reply_stub_req_hdr(devstub, USBIP_RET_SUBMIT, seqnum);
+		}
+		else {
+			DBGE(DBG_READWRITE, "clear_feature: no such ep\n");
+			reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, -1);
+		}
+		break;
+	default:
+		DBGE(DBG_READWRITE, "clear_feature: not supported: %s\n", dbg_cspkt_recipient(CSPKT_RECIPIENT(csp)));
+		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, -1);
+		break;
+	}
+}
+
+static void
 process_select_conf(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_t *csp)
 {
 	if (select_usb_conf(devstub, csp->wValue.W))
@@ -128,6 +154,9 @@ process_standard_request(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_csp
 	case USB_REQUEST_GET_DESCRIPTOR:
 		process_get_desc(devstub, seqnum, csp);
 		break;
+	case USB_REQUEST_CLEAR_FEATURE:
+		process_clear_feature(devstub, seqnum, csp);
+		break;
 	case USB_REQUEST_SET_CONFIGURATION:
 		process_select_conf(devstub, seqnum, csp);
 		break;
@@ -135,7 +164,7 @@ process_standard_request(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_csp
 		process_select_intf(devstub, seqnum, csp);
 		break;
 	default:
-		DBGE(DBG_READWRITE, "not supported standard request\n");
+		DBGE(DBG_READWRITE, "not supported standard request: %s\n", dbg_cspkt_reqtype(CSPKT_REQUEST_TYPE(csp)));
 		break;
 	}
 }
@@ -151,12 +180,22 @@ process_class_vendor_request(usbip_stub_dev_t *devstub, usb_cspkt_t *csp, struct
 	BOOLEAN	is_in, res;
 
 	datalen = hdr->u.cmd_submit.transfer_buffer_length;
+	is_in = hdr->base.direction ? TRUE : FALSE;
 	if (datalen == 0)
 		data = NULL;
-	else
-		data = (PVOID)(hdr + 1);
-
-	is_in = csp->bmRequestType.Dir ? TRUE : FALSE;
+	else {
+		if (is_in) {
+			data = ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)datalen, USBIP_STUB_POOL_TAG);
+			if (data == NULL) {
+				DBGE(DBG_GENERAL, "process_class_vendor_request: out of memory\n");
+				reply_stub_req_err(devstub, USBIP_RET_SUBMIT, hdr->base.seqnum, -1);
+				return;
+			}
+		}
+		else {
+			data = (PVOID)(hdr + 1);
+		}
+	}
 
 	switch (csp->bmRequestType.Recipient) {
 	case BMREQUEST_TO_DEVICE:
@@ -177,13 +216,19 @@ process_class_vendor_request(usbip_stub_dev_t *devstub, usb_cspkt_t *csp, struct
 	seqnum = hdr->base.seqnum;
 	res = submit_class_vendor_req(devstub, is_in, cmd, reservedBits, csp->bRequest, csp->wValue.W, csp->wIndex.W, data, &datalen);
 	if (res) {
-		if (is_in)
+		if (is_in) {
 			reply_stub_req_data(devstub, seqnum, data, datalen, TRUE);
+			if (data != NULL)
+				ExFreePoolWithTag(data, USBIP_STUB_POOL_TAG);
+		}
 		else
 			reply_stub_req_hdr(devstub, USBIP_RET_SUBMIT, seqnum);
 	}
-	else
+	else {
 		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, -1);
+		if (is_in && data != NULL)
+			ExFreePoolWithTag(data, USBIP_STUB_POOL_TAG);
+	}
 }
 
 static void
@@ -260,6 +305,8 @@ process_iso_transfer(usbip_stub_dev_t *devstub, PUSBD_PIPE_INFORMATION info_pipe
 
 	is_in = hdr->base.direction ? TRUE : FALSE;
 	usbd_flags = to_usbd_flags(hdr->u.cmd_submit.transfer_flags);
+	if (is_in)
+		usbd_flags |= USBD_TRANSFER_DIRECTION_IN;
 	n_pkts = hdr->u.cmd_submit.number_of_packets;
 	iso_descs_len = sizeof(struct usbip_iso_packet_descriptor) * n_pkts;
 
