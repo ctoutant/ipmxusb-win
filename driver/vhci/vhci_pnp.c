@@ -643,10 +643,10 @@ complete_pending_irp(pusbip_vpdo_dev_t vpdo)
 	KIRQL	oldirql;
 	BOOLEAN	valid_irp;
 
-	DBGI(DBG_PNP, "finish pending irp");
-	
+	DBGI(DBG_PNP, "finish pending irp\n");
+
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
-	while(!IsListEmpty(&vpdo->head_urbr)) {
+	while (!IsListEmpty(&vpdo->head_urbr)) {
 		struct urb_req	*urbr;
 		PIRP	irp;
 
@@ -671,8 +671,8 @@ complete_pending_irp(pusbip_vpdo_dev_t vpdo)
 		}
 
 		KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
-	};
-	
+	}
+
 	vpdo->urbr_sent_partial = NULL; // sure?
 	vpdo->len_sent_partial = 0;
 	InitializeListHead(&vpdo->head_urbr_sent);

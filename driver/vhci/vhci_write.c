@@ -353,7 +353,7 @@ process_write_irp(pusbip_vpdo_dev_t vpdo, PIRP write_irp)
 	status = process_urb_res(urbr, hdr);
 	PIRP irp = urbr->irp;
 	free_urbr(urbr);
-	
+
 	if (irp != NULL) {
 		BOOLEAN valid_irp;
 		IoAcquireCancelSpinLock(&oldirql);
@@ -372,7 +372,6 @@ process_write_irp(pusbip_vpdo_dev_t vpdo, PIRP write_irp)
 			KeLowerIrql(oldirql);
 		}
 	}
-	
 
 	return STATUS_SUCCESS;
 }

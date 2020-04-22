@@ -104,7 +104,8 @@ static void
 remove_cancelled_urbr(pusbip_vpdo_dev_t vpdo, PIRP irp)
 {
 	struct urb_req	*urbr;
-	KIRQL oldirql;
+	KIRQL	oldirql;
+
 	KeAcquireSpinLock(&vpdo->lock_urbr, &oldirql);
 
 	urbr = find_urbr_with_irp(vpdo, irp);
