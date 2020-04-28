@@ -340,7 +340,7 @@ store_urb_class_vendor(PIRP irp, PURB urb, struct urb_req *urbr)
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
 
-	if (!in) {
+	if (!in && urb_vc->TransferBufferLength > 0) {
 		if (get_read_payload_length(irp) >= urb_vc->TransferBufferLength) {
 			RtlCopyMemory(hdr + 1, urb_vc->TransferBuffer, urb_vc->TransferBufferLength);
 			irp->IoStatus.Information += urb_vc->TransferBufferLength;
@@ -448,7 +448,7 @@ store_urb_bulk(PIRP irp, PURB urb, struct urb_req *urbr)
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
 
-	if (!in) {
+	if (!in && urb_bi->TransferBufferLength > 0) {
 		if (get_read_payload_length(irp) >= urb_bi->TransferBufferLength) {
 			PVOID	buf = get_buf(urb_bi->TransferBuffer, urb_bi->TransferBufferMDL);
 			if (buf == NULL)
@@ -673,7 +673,7 @@ store_urb_control_transfer_ex(PIRP irp, PURB urb, struct urb_req* urbr)
 
 	irp->IoStatus.Information = sizeof(struct usbip_header);
 
-	if (!in) {
+	if (!in && urb_control_ex->TransferBufferLength > 0) {
 		if (get_read_payload_length(irp) >= urb_control_ex->TransferBufferLength) {
 			PVOID buf = get_buf(urb_control_ex->TransferBuffer, urb_control_ex->TransferBufferMDL);
 			if (buf == NULL)
