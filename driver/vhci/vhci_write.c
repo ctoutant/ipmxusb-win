@@ -5,7 +5,13 @@
 #include "usbd_helper.h"
 
 extern struct urb_req *
-find_sent_urbr(pusbip_vpdo_dev_t vpdo, struct usbip_header *hdr);
+find_sent_urbr(pvpdo_dev_t vpdo, struct usbip_header *hdr);
+extern NTSTATUS
+try_to_cache_descriptor(pvpdo_dev_t vpdo, struct _URB_CONTROL_DESCRIPTOR_REQUEST* urb_cdr, PUSB_COMMON_DESCRIPTOR dsc);
+extern NTSTATUS
+vpdo_select_config(pvpdo_dev_t vpdo, struct _URB_SELECT_CONFIGURATION *urb_selc);
+extern NTSTATUS
+vpdo_select_interface(pvpdo_dev_t vpdo, PUSBD_INTERFACE_INFORMATION info_intf);
 
 static BOOLEAN
 save_iso_desc(struct _URB_ISOCH_TRANSFER *urb, struct usbip_iso_packet_descriptor *iso_desc)
@@ -64,45 +70,34 @@ copy_iso_data(char *dest, ULONG dest_len, char *src, ULONG src_len, struct _URB_
 	}
 }
 
-static NTSTATUS
-post_select_config(pusbip_vpdo_dev_t vpdo, PURB urb)
+void
+post_get_desc(pvpdo_dev_t vpdo, PURB urb)
 {
-	PUSB_CONFIGURATION_DESCRIPTOR	dsc_conf;
-	USHORT	len;
-	struct _URB_SELECT_CONFIGURATION	*urb_selc = &urb->UrbSelectConfiguration;
+	struct _URB_CONTROL_DESCRIPTOR_REQUEST	*urb_cdr = &urb->UrbControlDescriptorRequest;
+	PUSB_COMMON_DESCRIPTOR	dsc;
 
-	// If ConfigurationDescriptor is NULL, the device will be set to an unconfigured state.
-	if (urb_selc->ConfigurationDescriptor == NULL) {
-		DBGE(DBG_WRITE, "post_select_config: unconfigured state\n");
-		return STATUS_SUCCESS;
+	dsc = get_buf(urb_cdr->TransferBuffer, urb_cdr->TransferBufferMDL);
+	if (dsc == NULL)
+		return;
+	if (dsc->bLength > urb_cdr->TransferBufferLength) {
+		DBGI(DBG_WRITE, "skip to cache partial descriptor: (%u < %hhu)\n", urb_cdr->TransferBufferLength, dsc->bLength);
+		return;
 	}
-
-	len = urb_selc->ConfigurationDescriptor->wTotalLength;
-	dsc_conf = ExAllocatePoolWithTag(NonPagedPool, len, USBIP_VHCI_POOL_TAG);
-	if (dsc_conf == NULL) {
-		DBGE(DBG_WRITE, "post_select_config: out of memory\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-	RtlCopyMemory(dsc_conf, urb_selc->ConfigurationDescriptor, len);
-	if (vpdo->dsc_conf)
-		ExFreePoolWithTag(vpdo->dsc_conf, USBIP_VHCI_POOL_TAG);
-	vpdo->dsc_conf = dsc_conf;
-
-	return select_config(urb_selc, vpdo->speed);
+	try_to_cache_descriptor(vpdo, urb_cdr, dsc);
 }
 
 static NTSTATUS
-post_select_interface(pusbip_vpdo_dev_t vpdo, PURB urb)
+post_select_config(pvpdo_dev_t vpdo, PURB urb)
+{
+	return vpdo_select_config(vpdo, &urb->UrbSelectConfiguration);
+}
+
+static NTSTATUS
+post_select_interface(pvpdo_dev_t vpdo, PURB urb)
 {
 	struct _URB_SELECT_INTERFACE	*urb_seli = &urb->UrbSelectInterface;
 
-	if (vpdo->dsc_conf == NULL) {
-		DBGW(DBG_WRITE, "post_select_interface: empty configuration descriptor\n");
-		return STATUS_INVALID_DEVICE_REQUEST;
-	}
-
-	return select_interface(urb_seli, vpdo->dsc_conf, vpdo->speed);
+	return vpdo_select_interface(vpdo, &urb_seli->Interface);
 }
 
 static NTSTATUS
@@ -123,9 +118,50 @@ copy_to_transfer_buffer(PVOID buf_dst, PMDL bufMDL, int dst_len, PVOID src, int 
 }
 
 static NTSTATUS
-store_urb_control(PURB urb, struct usbip_header *hdr)
+store_urb_get_desc(PURB urb, struct usbip_header *hdr)
 {
 	struct _URB_CONTROL_DESCRIPTOR_REQUEST *urb_desc = &urb->UrbControlDescriptorRequest;
+	NTSTATUS	status;
+
+	status = copy_to_transfer_buffer(urb_desc->TransferBuffer, urb_desc->TransferBufferMDL,
+		urb_desc->TransferBufferLength, hdr + 1, hdr->u.ret_submit.actual_length);
+	if (status == STATUS_SUCCESS)
+		urb_desc->TransferBufferLength = hdr->u.ret_submit.actual_length;
+	return status;
+}
+
+static NTSTATUS
+store_urb_get_status(PURB urb, struct usbip_header *hdr)
+{
+	struct _URB_CONTROL_GET_STATUS_REQUEST	*urb_gsr = &urb->UrbControlGetStatusRequest;
+	NTSTATUS	status;
+
+	status = copy_to_transfer_buffer(urb_gsr->TransferBuffer, urb_gsr->TransferBufferMDL,
+		urb_gsr->TransferBufferLength, hdr + 1, hdr->u.ret_submit.actual_length);
+	if (status == STATUS_SUCCESS)
+		urb_gsr->TransferBufferLength = hdr->u.ret_submit.actual_length;
+	return status;
+}
+
+static NTSTATUS
+store_urb_control_transfer(PURB urb, struct usbip_header *hdr)
+{
+	struct _URB_CONTROL_TRANSFER	*urb_desc = &urb->UrbControlTransfer;
+	NTSTATUS	status;
+
+	if (urb_desc->TransferBufferLength == 0)
+		return STATUS_SUCCESS;
+	status = copy_to_transfer_buffer(urb_desc->TransferBuffer, urb_desc->TransferBufferMDL,
+		urb_desc->TransferBufferLength, hdr + 1, hdr->u.ret_submit.actual_length);
+	if (status == STATUS_SUCCESS)
+		urb_desc->TransferBufferLength = hdr->u.ret_submit.actual_length;
+	return status;
+}
+
+static NTSTATUS
+store_urb_control_transfer_ex(PURB urb, struct usbip_header* hdr)
+{
+	struct _URB_CONTROL_TRANSFER_EX	*urb_desc = &urb->UrbControlTransferEx;
 	NTSTATUS	status;
 
 	status = copy_to_transfer_buffer(urb_desc->TransferBuffer, urb_desc->TransferBufferMDL,
@@ -201,7 +237,13 @@ store_urb_data(PURB urb, struct usbip_header *hdr)
 	switch (urb->UrbHeader.Function) {
 	case URB_FUNCTION_GET_DESCRIPTOR_FROM_INTERFACE:
 	case URB_FUNCTION_GET_DESCRIPTOR_FROM_DEVICE:
-		status = store_urb_control(urb, hdr);
+		status = store_urb_get_desc(urb, hdr);
+		break;
+	case URB_FUNCTION_GET_STATUS_FROM_DEVICE:
+	case URB_FUNCTION_GET_STATUS_FROM_INTERFACE:
+	case URB_FUNCTION_GET_STATUS_FROM_ENDPOINT:
+	case URB_FUNCTION_GET_STATUS_FROM_OTHER:
+		status = store_urb_get_status(urb, hdr);
 		break;
 	case URB_FUNCTION_CLASS_DEVICE:
 	case URB_FUNCTION_CLASS_INTERFACE:
@@ -228,6 +270,12 @@ store_urb_data(PURB urb, struct usbip_header *hdr)
 	case URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL:
 		status = STATUS_SUCCESS;
 		break;
+	case URB_FUNCTION_CONTROL_TRANSFER:
+		status = store_urb_control_transfer(urb, hdr);
+		break;
+	case URB_FUNCTION_CONTROL_TRANSFER_EX:
+		status = store_urb_control_transfer_ex(urb, hdr);
+		break;
 	default:
 		DBGE(DBG_WRITE, "not supported func: %s\n", dbg_urbfunc(urb->UrbHeader.Function));
 		status = STATUS_INVALID_PARAMETER;
@@ -241,7 +289,7 @@ store_urb_data(PURB urb, struct usbip_header *hdr)
 }
 
 static NTSTATUS
-process_urb_res_submit(pusbip_vpdo_dev_t vpdo, PURB urb, struct usbip_header *hdr)
+process_urb_res_submit(pvpdo_dev_t vpdo, PURB urb, struct usbip_header *hdr)
 {
 	NTSTATUS	status;
 
@@ -253,11 +301,18 @@ process_urb_res_submit(pusbip_vpdo_dev_t vpdo, PURB urb, struct usbip_header *hd
 		if (urb->UrbHeader.Function == URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER) {
 			urb->UrbBulkOrInterruptTransfer.TransferBufferLength = hdr->u.ret_submit.actual_length;
 		}
+		DBGW(DBG_WRITE, "%s: wrong status: %s\n", dbg_urbfunc(urb->UrbHeader.Function), dbg_usbd_status(urb->UrbHeader.Status));
 		return STATUS_UNSUCCESSFUL;
 	}
+
 	status = store_urb_data(urb, hdr);
 	if (status == STATUS_SUCCESS) {
 		switch (urb->UrbHeader.Function) {
+		case URB_FUNCTION_GET_DESCRIPTOR_FROM_DEVICE:
+		case URB_FUNCTION_GET_DESCRIPTOR_FROM_INTERFACE:
+		case URB_FUNCTION_GET_DESCRIPTOR_FROM_ENDPOINT:
+			post_get_desc(vpdo, urb);
+			break;
 		case URB_FUNCTION_SELECT_CONFIGURATION:
 			status = post_select_config(vpdo, urb);
 			break;
@@ -269,6 +324,35 @@ process_urb_res_submit(pusbip_vpdo_dev_t vpdo, PURB urb, struct usbip_header *hd
 		}
 	}
 	return status;
+}
+
+static NTSTATUS
+process_urb_dsc_req(struct urb_req *urbr, struct usbip_header *hdr)
+{
+	if (hdr->u.ret_submit.status != 0) {
+		DBGW(DBG_WRITE, "dsc_req: wrong status: %s\n", dbg_usbd_status(to_usbd_status(hdr->u.ret_submit.status)));
+		return STATUS_UNSUCCESSFUL;
+	}
+	else {
+		PIO_STACK_LOCATION	irpstack;
+		PIRP	irp = urbr->irp;
+		ULONG	outlen;
+
+		irpstack = IoGetCurrentIrpStackLocation(irp);
+		outlen = irpstack->Parameters.DeviceIoControl.OutputBufferLength;
+
+		irp->IoStatus.Information = hdr->u.ret_submit.actual_length + sizeof(USB_DESCRIPTOR_REQUEST);
+		if (outlen < hdr->u.ret_submit.actual_length + sizeof(USB_DESCRIPTOR_REQUEST)) {
+			irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+		}
+		else {
+			PUSB_DESCRIPTOR_REQUEST	dsc_req = (PUSB_DESCRIPTOR_REQUEST)urbr->irp->AssociatedIrp.SystemBuffer;
+			RtlCopyMemory(dsc_req->Data, hdr + 1, hdr->u.ret_submit.actual_length);
+			irp->IoStatus.Status = STATUS_SUCCESS;
+		}
+
+		return irp->IoStatus.Status;
+	}
 }
 
 static NTSTATUS
@@ -290,6 +374,8 @@ process_urb_res(struct urb_req *urbr, struct usbip_header *hdr)
 		return process_urb_res_submit(urbr->vpdo, irpstack->Parameters.Others.Argument1, hdr);
 	case IOCTL_INTERNAL_USB_RESET_PORT:
 		return STATUS_SUCCESS;
+	case IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION:
+		return process_urb_dsc_req(urbr, hdr);
 	default:
 		DBGE(DBG_WRITE, "unhandled ioctl: %s\n", dbg_vhci_ioctl_code(ioctl_code));
 		return STATUS_INVALID_PARAMETER;
@@ -312,14 +398,14 @@ get_usbip_hdr_from_write_irp(PIRP irp)
 }
 
 static NTSTATUS
-process_write_irp(pusbip_vpdo_dev_t vpdo, PIRP irp)
+process_write_irp(pvpdo_dev_t vpdo, PIRP write_irp)
 {
 	struct usbip_header	*hdr;
 	struct urb_req	*urbr;
 	KIRQL	oldirql;
 	NTSTATUS	status;
 
-	hdr = get_usbip_hdr_from_write_irp(irp);
+	hdr = get_usbip_hdr_from_write_irp(write_irp);
 	if (hdr == NULL) {
 		DBGE(DBG_WRITE, "small write irp\n");
 		return STATUS_INVALID_PARAMETER;
@@ -333,69 +419,70 @@ process_write_irp(pusbip_vpdo_dev_t vpdo, PIRP irp)
 	}
 
 	status = process_urb_res(urbr, hdr);
-
-	if (urbr->irp != NULL) {
-		IoSetCancelRoutine(urbr->irp, NULL);
-		urbr->irp->IoStatus.Status = status;
-
-		/* it seems windows client usb driver will think
-		 * IoCompleteRequest is running at DISPATCH_LEVEL
-		 * so without this it will change IRQL sometimes,
-		 * and introduce to a dead of my userspace program
-		 */
-		KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
-		IoCompleteRequest(urbr->irp, IO_NO_INCREMENT);
-		KeLowerIrql(oldirql);
-	}
+	PIRP irp = urbr->irp;
 	free_urbr(urbr);
+
+	if (irp != NULL) {
+		BOOLEAN valid_irp;
+		IoAcquireCancelSpinLock(&oldirql);
+		valid_irp = IoSetCancelRoutine(irp, NULL) != NULL;
+		IoReleaseCancelSpinLock(oldirql);
+		if (valid_irp) {
+			irp->IoStatus.Status = status;
+
+			/* it seems windows client usb driver will think
+			 * IoCompleteRequest is running at DISPATCH_LEVEL
+			 * so without this it will change IRQL sometimes,
+			 * and introduce to a dead of my userspace program
+			 */
+			KeRaiseIrql(DISPATCH_LEVEL, &oldirql);
+			IoCompleteRequest(irp, IO_NO_INCREMENT);
+			KeLowerIrql(oldirql);
+		}
+	}
 
 	return STATUS_SUCCESS;
 }
 
 PAGEABLE NTSTATUS
-vhci_write(__in PDEVICE_OBJECT devobj, __in PIRP Irp)
+vhci_write(__in PDEVICE_OBJECT devobj, __in PIRP irp)
 {
-	pusbip_vhub_dev_t	vhub;
-	pusbip_vpdo_dev_t	vpdo;
-	pdev_common_t		devcom;
-	PIO_STACK_LOCATION	stackirp;
+	pvhci_dev_t	vhci;
+	pvpdo_dev_t	vpdo;
+	PIO_STACK_LOCATION	irpstack;
 	NTSTATUS		status;
 
 	PAGED_CODE();
 
-	devcom = (pdev_common_t)devobj->DeviceExtension;
+	irpstack = IoGetCurrentIrpStackLocation(irp);
 
-	DBGI(DBG_GENERAL | DBG_WRITE, "vhci_write: Enter\n");
+	DBGI(DBG_GENERAL | DBG_WRITE, "vhci_write: Enter: len:%u, irp:%p\n", irpstack->Parameters.Write.Length, irp);
 
-	if (!devcom->is_vhub) {
-		DBGE(DBG_WRITE, "write for vhub is not allowed\n");
+	if (!IS_DEVOBJ_VHCI(devobj)) {
+		DBGE(DBG_WRITE, "write for non-vhci is not allowed\n");
 
-		Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-		IoCompleteRequest(Irp, IO_NO_INCREMENT);
+		irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		return STATUS_INVALID_DEVICE_REQUEST;
 	}
 
-	vhub = (pusbip_vhub_dev_t)devobj->DeviceExtension;
+	vhci = DEVOBJ_TO_VHCI(devobj);
 
-	inc_io_vhub(vhub);
-
-	if (vhub->common.DevicePnPState == Deleted) {
+	if (vhci->common.DevicePnPState == Deleted) {
 		status = STATUS_NO_SUCH_DEVICE;
 		goto END;
 	}
-	stackirp = IoGetCurrentIrpStackLocation(Irp);
-	vpdo = stackirp->FileObject->FsContext;
-	if (vpdo == NULL || !vpdo->Present) {
+	vpdo = irpstack->FileObject->FsContext;
+	if (vpdo == NULL || !vpdo->plugged) {
 		status = STATUS_INVALID_DEVICE_REQUEST;
 		goto END;
 	}
-	Irp->IoStatus.Information = 0;
-	status = process_write_irp(vpdo, Irp);
+	irp->IoStatus.Information = 0;
+	status = process_write_irp(vpdo, irp);
 END:
-	DBGI(DBG_WRITE, "vhci_write: Leave: %s\n", dbg_ntstatus(status));
-	Irp->IoStatus.Status = status;
-	IoCompleteRequest(Irp, IO_NO_INCREMENT);
-	dec_io_vhub(vhub);
+	DBGI(DBG_WRITE, "vhci_write: Leave: irp:%p, status:%s\n", irp, dbg_ntstatus(status));
+	irp->IoStatus.Status = status;
+	IoCompleteRequest(irp, IO_NO_INCREMENT);
 
 	return status;
 }

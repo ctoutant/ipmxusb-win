@@ -91,6 +91,18 @@ static const struct command cmds[] = {
 		.help  = "Unbind device from usbip stub driver",
 		.usage = usbip_unbind_usage
 	},
+	{
+		.name  = "install",
+		.fn    = usbip_install,
+		.help  = "Install or reinstall drivers for usbip",
+		.usage = usbip_install_usage
+	},
+	{
+		.name = "uninstall",
+		.fn = usbip_uninstall,
+		.help = "Uninstall drivers for usbip",
+		.usage = usbip_uninstall_usage
+	},
 #if 0 /* Not implemented yet */
 	{
 		.name  = "port",

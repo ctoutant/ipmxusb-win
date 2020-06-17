@@ -17,7 +17,7 @@ walker_devpath(HDEVINFO dev_info, PSP_DEVINFO_DATA pdev_info_data, devno_t devno
 	PSP_DEVICE_INTERFACE_DETAIL_DATA	pdev_interface_detail;
 
 	id_hw = get_id_hw(dev_info, pdev_info_data);
-	if (id_hw == NULL || strcmp(id_hw, "root\\usbip_vhci") != 0) {
+	if (id_hw == NULL || _stricmp(id_hw, "usbipwin\\vhci") != 0) {
 		err("%s: invalid hw id: %s\n", __FUNCTION__, id_hw ? id_hw : "");
 		if (id_hw != NULL)
 			free(id_hw);
@@ -104,7 +104,7 @@ usbip_vhci_get_free_port(HANDLE hdev)
 }
 
 int
-usbip_vhci_attach_device(HANDLE hdev, int port, usbip_wudev_t *wudev)
+usbip_vhci_attach_device(HANDLE hdev, int port, const char *instid, usbip_wudev_t *wudev)
 {
 	ioctl_usbip_vhci_plugin  plugin;
 	unsigned long	unused;
@@ -120,6 +120,11 @@ usbip_vhci_attach_device(HANDLE hdev, int port, usbip_wudev_t *wudev)
 	plugin.protocol = wudev->bDeviceProtocol;
 
 	plugin.port = port;
+
+	if (instid != NULL)
+		mbstowcs_s(NULL, plugin.winstid, MAX_VHCI_INSTANCE_ID, instid, _TRUNCATE);
+	else
+		plugin.winstid[0] = L'\0';
 
 	if (!DeviceIoControl(hdev, IOCTL_USBIP_VHCI_PLUGIN_HARDWARE,
 		&plugin, sizeof(plugin), NULL, 0, &unused, NULL)) {
