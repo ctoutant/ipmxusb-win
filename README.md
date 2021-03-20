@@ -10,7 +10,7 @@
 - x86/x64 platforms should be supported. However, we don't have an x86 setup for testing at the moment.
 - For Windows 7 users, change `usbip_stub` and `usbip_vhci` projects' Target OS version to `Windows 7`.
   - Right-click on the `Project > Properties > Driver Settings > Target OS version > Windows 7`;
-  - The recent tag version which supports is v0.1.0. All versions after v0.1.0 do not support Winindows 7 or 8 because usbip-win started to use kernel libraries of Winindows 10.
+  - The recent tag version which supports is v0.1.0. All versions after v0.1.0 do not support Windows 7 or 8 because usbip-win started to use kernel libraries of Windows 10.
 
 ### Build Tools
 - Visual Studio 2019 Community (v142);
