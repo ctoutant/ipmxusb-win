@@ -18,7 +18,7 @@ PnpLockDown=1
 
 [Standard.NT$ARCH$]
 %DeviceDesc%=usbip_vhci_Device, USBIPWIN\vhci
-%vhub_DeviceDesc%=usbip_vhci_Device, USB\ROOT_HUB&VID1209&PID8250&REV0000
+%vhub_DeviceDesc%=usbip_vhci_Device, USB\ROOT_HUB&VID_1209&PID_8250&REV_0000
 
 [DestinationDirs]
 DefaultDestDir = 12

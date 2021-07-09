@@ -1,5 +1,4 @@
 #include "vhci.h"
-
 #include "vhci_pnp.h"
 
 #define MAX_HUB_PORTS		6
