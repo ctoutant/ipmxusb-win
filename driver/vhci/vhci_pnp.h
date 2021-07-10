@@ -11,7 +11,11 @@
 #define VHUB_PID	L"8250"
 #define VHUB_REV	L"0000"
 
-#define HWID_VHUB   VHUB_PREFIX L"&VID_" VHUB_VID L"&PID_" VHUB_PID L"&REV_" VHUB_REV
+#define HWID_VHUB \
+	VHUB_PREFIX \
+	L"&VID_" VHUB_VID \
+	L"&PID_" VHUB_PID \
+	L"&REV_" VHUB_REV
 
 #define INITIALIZE_PNP_STATE(_Data_)    \
         (_Data_)->common.DevicePnPState =  NotStarted;\

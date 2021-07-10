@@ -18,7 +18,7 @@
 	DEVID_VHUB L"\0" \
 	VHUB_PREFIX L"&VID_" VHUB_VID L"&PID_" VHUB_PID L"\0"
 
-// vdev_type_t is an index
+ // vdev_type_t is an index
 static const LPCWSTR vdev_devids[] = {
 	NULL, DEVID_VHCI,
 	NULL, DEVID_VHUB,
@@ -28,7 +28,7 @@ static const LPCWSTR vdev_devids[] = {
 static const size_t vdev_devid_size[] = {
 	0, sizeof(DEVID_VHCI),
 	0, sizeof(DEVID_VHUB),
-	0, (21+1) * sizeof(wchar_t)
+	0, (21 + 1) * sizeof(wchar_t)
 };
 
 static const LPCWSTR vdev_hwids[] = {
@@ -41,10 +41,10 @@ static const LPCWSTR vdev_hwids[] = {
 static const size_t vdev_hwids_size[] = {
 	0, sizeof(HWIDS_VHCI),
 	0, sizeof(HWIDS_VHUB),
-	0, (31+22+1) * sizeof(wchar_t)
+	0, (31 + 22 + 1) * sizeof(wchar_t)
 };
 
-void multi_z_replace_char(wchar_t *s, wchar_t ch, wchar_t rep)
+void subst_char(wchar_t *s, wchar_t ch, wchar_t rep)
 {
 	for ( ; *s; ++s) {
 		if (*s == ch) {
@@ -59,9 +59,9 @@ void multi_z_replace_char(wchar_t *s, wchar_t ch, wchar_t rep)
   The bus driver also reports a compatible identifier (ID) of USB\COMPOSITE,
   if the device meets the following requirements:
   * The device class field of the device descriptor (bDeviceClass) must contain a value of zero,
-    or the class (bDeviceClass), subclass (bDeviceSubClass), and protocol (bDeviceProtocol) fields
-    of the device descriptor must have the values 0xEF, 0x02 and 0x01 respectively, as explained
-    in USB Interface Association Descriptor.
+	or the class (bDeviceClass), subclass (bDeviceSubClass), and protocol (bDeviceProtocol) fields
+	of the device descriptor must have the values 0xEF, 0x02 and 0x01 respectively, as explained
+	in USB Interface Association Descriptor.
   * The device must have multiple interfaces.
   * The device must have a single configuration.
 
@@ -70,20 +70,18 @@ void multi_z_replace_char(wchar_t *s, wchar_t ch, wchar_t rep)
   the device is a composite device, and the bus driver reports an extra compatible
   identifier (ID) of USB\COMPOSITE for the PDO.
 */
-static bool is_composite(pvpdo_dev_t vpdo)
+static bool is_composite(vpdo_dev_t *vpdo)
 {
-	USB_DEVICE_DESCRIPTOR *dd = vpdo->dsc_dev;
+	bool ok = !vpdo->usbclass || // generic composite device
+		  (vpdo->usbclass == 0xEF &&
+		   vpdo->subclass == 0x02 &&
+		   vpdo->protocol == 0x01); // IAD composite device
 
-	BOOLEAN ok = !vpdo->usbclass || // generic composite device
-	             (vpdo->usbclass == 0xEF &&
-	              vpdo->subclass == 0x02 &&
-	              vpdo->protocol == 0x01); // IAD composite device
-
-	if (ok && vpdo->dsc_conf->bNumInterfaces > 1) { // && dd && dd->bNumConfigurations == 1) {
+	if (ok && vpdo->inum > 1 && vpdo->num_configurations == 1) {
 		return true;
 	}
 
-	return dd && !(dd->bDeviceClass || dd->bDeviceSubClass || dd->bDeviceProtocol);
+	return !(vpdo->usbclass || vpdo->subclass || vpdo->protocol);
 }
 
 /*
@@ -91,8 +89,9 @@ static bool is_composite(pvpdo_dev_t vpdo)
  * USB\VID_xxxx&PID_yyyy
  */
 static NTSTATUS
-setup_device_id(PWCHAR *result, pvdev_t vdev, PIRP irp)
+setup_device_id(PWCHAR *result, bool *subst_result, pvdev_t vdev, PIRP irp)
 {
+	UNREFERENCED_PARAMETER(subst_result);
 	UNREFERENCED_PARAMETER(irp);
 
 	NTSTATUS status = STATUS_SUCCESS;
@@ -102,7 +101,6 @@ setup_device_id(PWCHAR *result, pvdev_t vdev, PIRP irp)
 	LPCWSTR str = vdev_devids[vdev->type];
 
 	if (!str) {
-		DBGI(DBG_PNP, "%s: query device id: NOT SUPPORTED\n", dbg_vdev_type(vdev->type));
 		return STATUS_NOT_SUPPORTED;
 	}
 
@@ -121,29 +119,25 @@ setup_device_id(PWCHAR *result, pvdev_t vdev, PIRP irp)
 
 	if (status == STATUS_SUCCESS) {
 		*result = id_dev;
-		DBGI(DBG_PNP, "%s: device id: %S\n", dbg_vdev_type(vdev->type), id_dev);
-	} else {
-		ExFreePoolWithTag(id_dev, USBIP_VHCI_POOL_TAG);
-		DBGE(DBG_PNP, "%s: query device id failure\n", dbg_vdev_type(vdev->type));
 	}
 
 	return status;
 }
 
 static NTSTATUS
-setup_hw_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
+setup_hw_ids(PWCHAR *result, bool *subst_result, pvdev_t vdev, PIRP irp)
 {
 	UNREFERENCED_PARAMETER(irp);
 
 	NTSTATUS status = STATUS_SUCCESS;
-	bool multi_z = vdev->type == VDEV_VPDO;
 	PWCHAR ids_hw = NULL;
+
+	*subst_result = vdev->type == VDEV_VPDO;
 
 	size_t str_sz = vdev_hwids_size[vdev->type];
 	LPCWSTR str = vdev_hwids[vdev->type];
 
 	if (!str) {
-		DBGI(DBG_PNP, "%s: query hw ids: NOT SUPPORTED%s\n", dbg_vdev_type(vdev->type));
 		return STATUS_NOT_SUPPORTED;
 	}
 
@@ -153,7 +147,7 @@ setup_hw_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	if (multi_z) {
+	if (*subst_result) {
 		pvpdo_dev_t vpdo = (pvpdo_dev_t)vdev;
 		status = RtlStringCbPrintfW(ids_hw, str_sz, str,
 					    vpdo->vendor, vpdo->product, vpdo->revision,
@@ -164,13 +158,6 @@ setup_hw_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
 
 	if (status == STATUS_SUCCESS) {
 		*result = ids_hw;
-		DBGI(DBG_PNP, "%s: hw id: %S\n", dbg_vdev_type(vdev->type), ids_hw);
-		if (multi_z) {
-			multi_z_replace_char(ids_hw, L';', L'\0');
-		}
-	} else {
-		ExFreePoolWithTag(ids_hw, USBIP_VHCI_POOL_TAG);
-		DBGE(DBG_PNP, "%s: query hw id failure\n", dbg_vdev_type(vdev->type));
 	}
 
 	return status;
@@ -203,8 +190,9 @@ if a bus-supplied instance ID is unique across the system, as follows:
 An instance ID is persistent across system restarts.
 */
 static NTSTATUS
-setup_inst_id_or_serial(PWCHAR *result, pvdev_t vdev, PIRP irp, const char *query, bool serial)
+setup_inst_id_or_serial(PWCHAR *result, bool *subst_result, pvdev_t vdev, PIRP irp, const char *query, bool serial)
 {
+	UNREFERENCED_PARAMETER(subst_result);
 	UNREFERENCED_PARAMETER(irp);
 
 	NTSTATUS status = STATUS_SUCCESS;
@@ -212,14 +200,13 @@ setup_inst_id_or_serial(PWCHAR *result, pvdev_t vdev, PIRP irp, const char *quer
 	PWCHAR id_inst = NULL;
 
 	size_t max_wchars = MAX_VHCI_SERIAL_ID + 1;
-//	static_assert(MAX_VHCI_SERIAL_ID <= MAX_DEVICE_ID_LEN, "assert");
+	// static_assert(MAX_VHCI_SERIAL_ID <= MAX_DEVICE_ID_LEN, "assert");
 
 	if (vdev->type != VDEV_VPDO) {
-		DBGI(DBG_PNP, "%s: query %s: NOT SUPPORTED\n", dbg_vdev_type(vdev->type), query);
 		return STATUS_NOT_SUPPORTED;
 	}
 
-	id_inst = ExAllocatePoolWithTag(PagedPool, max_wchars * sizeof(wchar_t), USBIP_VHCI_POOL_TAG);
+	id_inst = ExAllocatePoolWithTag(PagedPool, max_wchars*sizeof(wchar_t), USBIP_VHCI_POOL_TAG);
 	if (!id_inst) {
 		DBGE(DBG_PNP, "vpdo: query %s: out of memory\n", query);
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -231,17 +218,13 @@ setup_inst_id_or_serial(PWCHAR *result, pvdev_t vdev, PIRP irp, const char *quer
 
 	if (status == STATUS_SUCCESS) {
 		*result = id_inst;
-		DBGI(DBG_PNP, "vpdo: query %s: %S\n", query, id_inst);
-	} else {
-		ExFreePoolWithTag(id_inst, USBIP_VHCI_POOL_TAG);
-		DBGE(DBG_PNP, "vpdo: query %s failure\n", query);
 	}
 
 	return status;
 }
 
 static NTSTATUS
-setup_compat_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
+setup_compat_ids(PWCHAR *result, bool *subst_result, pvdev_t vdev, PIRP irp)
 {
 	UNREFERENCED_PARAMETER(irp);
 
@@ -255,14 +238,13 @@ setup_compat_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
 	const wchar_t comp[] = L"USB\\COMPOSITE\0";
 
 	const wchar_t fmt[] =
-	L"USB\\Class_%02hhx&SubClass_%02hhx&Prot_%02hhx;" // 33 chars after formatting
-	L"USB\\Class_%02hhx&SubClass_%02hhx;" // 25 chars after formatting
-	L"USB\\Class_%02hhx;"; // 13 chars after formatting
+		L"USB\\Class_%02hhx&SubClass_%02hhx&Prot_%02hhx;" // 33 chars after formatting
+		L"USB\\Class_%02hhx&SubClass_%02hhx;" // 25 chars after formatting
+		L"USB\\Class_%02hhx;"; // 13 chars after formatting
 
-	const size_t max_wchars = 33 + 25 + 13 + sizeof(comp)/sizeof(*comp);
+	const size_t max_wchars = 33 + 25 + 13 + sizeof(comp) / sizeof(*comp);
 
 	if (vdev->type != VDEV_VPDO) {
-		DBGI(DBG_PNP, "%s: query compatible id: NOT SUPPORTED\n", dbg_vdev_type(vdev->type));
 		return STATUS_NOT_SUPPORTED;
 	}
 
@@ -273,9 +255,9 @@ setup_compat_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
 	}
 
 	status = RtlStringCchPrintfExW(ids_compat, max_wchars, &dest_end, &remaining, 0, fmt,
-				     vpdo->usbclass, vpdo->subclass, vpdo->protocol,
-				     vpdo->usbclass, vpdo->subclass,
-				     vpdo->usbclass);
+					vpdo->usbclass, vpdo->subclass, vpdo->protocol,
+					vpdo->usbclass, vpdo->subclass,
+					vpdo->usbclass);
 
 	if (status == STATUS_SUCCESS && is_composite(vpdo)) {
 		NT_ASSERT(sizeof(comp) == remaining);
@@ -284,11 +266,7 @@ setup_compat_ids(PWCHAR *result, pvdev_t vdev, PIRP irp)
 
 	if (status == STATUS_SUCCESS) {
 		*result = ids_compat;
-		DBGI(DBG_PNP, "%s: query compatible id: %S\n", dbg_vdev_type(vdev->type), ids_compat);
-		multi_z_replace_char(ids_compat, L';', L'\0');
-	} else {
-		ExFreePoolWithTag(ids_compat, USBIP_VHCI_POOL_TAG);
-		DBGE(DBG_PNP, "vpdo: query compatible id failure\n");
+		*subst_result = true;
 	}
 
 	return status;
@@ -303,33 +281,47 @@ PAGEABLE NTSTATUS
 pnp_query_id(pvdev_t vdev, PIRP irp, PIO_STACK_LOCATION irpstack)
 {
 	NTSTATUS status = STATUS_NOT_SUPPORTED;
-	PWCHAR result = NULL;
 
-	DBGI(DBG_PNP, "%s: query id: %s\n", dbg_vdev_type(vdev->type), dbg_bus_query_id_type(irpstack->Parameters.QueryId.IdType));
+	PWCHAR result = NULL;
+	bool subst_result = false;
+
+	BUS_QUERY_ID_TYPE type = irpstack->Parameters.QueryId.IdType;
+	const char *query_id = dbg_bus_query_id_type(type);
 
 	PAGED_CODE();
 
-	switch (irpstack->Parameters.QueryId.IdType) {
+	switch (type) {
 	case BusQueryDeviceID:
-		status = setup_device_id(&result, vdev, irp);
+		status = setup_device_id(&result, &subst_result, vdev, irp);
 		break;
 	case BusQueryInstanceID:
-		status = setup_inst_id_or_serial(&result, vdev, irp, "instance id", false);
+		status = setup_inst_id_or_serial(&result, &subst_result, vdev, irp, "instance id", false);
 		break;
 	case BusQueryHardwareIDs:
-		status = setup_hw_ids(&result, vdev, irp);
+		status = setup_hw_ids(&result, &subst_result, vdev, irp);
 		break;
 	case BusQueryCompatibleIDs:
-		status = setup_compat_ids(&result, vdev, irp);
+		status = setup_compat_ids(&result, &subst_result, vdev, irp);
 		break;
 	case BusQueryDeviceSerialNumber:
-		status = setup_inst_id_or_serial(&result, vdev, irp, "device serial number", true);
+		status = setup_inst_id_or_serial(&result, &subst_result, vdev, irp, "device serial number", true);
 		break;
 	case BusQueryContainerID:
-	default:
-		DBGW(DBG_PNP, "%s: unhandled query id: %s\n",
-			dbg_vdev_type(vdev->type),
-			dbg_bus_query_id_type(irpstack->Parameters.QueryId.IdType));
+		break;
+	}
+
+	if (status == STATUS_SUCCESS) {
+		DBGI(DBG_PNP, "%s: %s: %S\n", dbg_vdev_type(vdev->type), query_id, result);
+		if (subst_result) {
+			subst_char(result, L';', L'\0');
+		}
+	} else {
+		const char *what = status == STATUS_NOT_SUPPORTED ? "not supported" : "failed";
+		DBGW(DBG_PNP, "%s: %s: %s\n", dbg_vdev_type(vdev->type), query_id, what);
+		if (result) {
+			ExFreePoolWithTag(result, USBIP_VHCI_POOL_TAG);
+			result = NULL;
+		}
 	}
 
 	irp->IoStatus.Information = (ULONG_PTR)result;
