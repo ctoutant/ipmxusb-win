@@ -9,23 +9,24 @@ static void
 recv_pdu(SOCKET connfd, BOOL *pneed_close_sockfd)
 {
 	uint16_t	code = OP_UNSPEC;
+	int	status;
 	int	ret;
 
 	*pneed_close_sockfd = TRUE;
 
-	ret = usbip_net_recv_op_common(connfd, &code);
+	ret = usbip_net_recv_op_common(connfd, &code, &status);
 	if (ret < 0) {
-		dbg("%s: could not receive opcode: %#0x", __FUNCTION__, code);
+		dbg("could not receive opcode: %#0x, %x", code, status);
 		return;
 	}
 
 	switch (code) {
 	case OP_REQ_DEVLIST:
-		info("%s: received request: %#0x - list devices", __FUNCTION__, code);
+		dbg("received request: %#0x - list devices", code);
 		ret = recv_request_devlist(connfd);
 		break;
 	case OP_REQ_IMPORT:
-		info("%s: received request: %#0x - attach device", __FUNCTION__, code);
+		dbg("received request: %#0x - attach device", code);
 		ret = recv_request_import(connfd);
 		if (ret == 0)
 			*pneed_close_sockfd = FALSE;
@@ -33,14 +34,11 @@ recv_pdu(SOCKET connfd, BOOL *pneed_close_sockfd)
 	case OP_REQ_DEVINFO:
 	case OP_REQ_CRYPKEY:
 	default:
-		err("%s: received an unknown opcode: %#0x", __FUNCTION__, code);
+		dbg("received an unknown opcode: %#0x", code);
 		break;
 	}
 
-	if (ret == 0)
-		info("%s: request %#0x: complete", __FUNCTION__, code);
-	else
-		info("%s: request %#0x: failed", __FUNCTION__, code);
+	dbg("request %#0x: done: err: %d", code, ret);
 }
 
 static SOCKET
@@ -61,10 +59,10 @@ do_accept(SOCKET listenfd)
 
 		rc = getnameinfo((struct sockaddr *)&ss, len, host, sizeof(host),
 			port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
-		if (rc != 0)
-			err("getnameinfo: %s", gai_strerror(rc));
-
-		info("connection from %s:%s", host, port);
+		if (rc != 0) {
+			dbg("getnameinfo: %s", gai_strerror(rc));
+		}
+		dbg("connection from %s:%s", host, port);
 	}
 	return connfd;
 }

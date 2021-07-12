@@ -4,9 +4,11 @@
  */
 
 #include <ws2tcpip.h>
+#include <mstcpip.h>
 
 #include "usbip_common.h"
 #include "usbip_network.h"
+#include "dbgcode.h"
 
 int usbip_port = 3240;
 char *usbip_port_string = "3240";
@@ -17,17 +19,17 @@ void usbip_setup_port_number(char *arg)
 	unsigned long int port = strtoul(arg, &end, 10);
 
 	if (end == arg) {
-		err("port: could not parse '%s' as a decimal integer", arg);
+		dbg("port: could not parse '%s' as a decimal integer", arg);
 		return;
 	}
 
 	if (*end != '\0') {
-		err("port: garbage at end of '%s'", arg);
+		dbg("port: garbage at end of '%s'", arg);
 		return;
 	}
 
 	if (port > UINT16_MAX) {
-		err("port: %s too high (max=%d)",
+		dbg("port: %s too high (max=%d)",
 		    arg, UINT16_MAX);
 		return;
 	}
@@ -137,7 +139,7 @@ int usbip_net_send_op_common(SOCKET sockfd, uint32_t code, uint32_t status)
 	return 0;
 }
 
-int usbip_net_recv_op_common(SOCKET sockfd, uint16_t *code)
+int usbip_net_recv_op_common(SOCKET sockfd, uint16_t *code, int *pstatus)
 {
 	struct op_common op_common;
 	int rc;
@@ -147,36 +149,35 @@ int usbip_net_recv_op_common(SOCKET sockfd, uint16_t *code)
 	rc = usbip_net_recv(sockfd, &op_common, sizeof(op_common));
 	if (rc < 0) {
 		dbg("usbip_net_recv failed: %d", rc);
-		goto err;
+		return ERR_NETWORK;
 	}
 
 	PACK_OP_COMMON(0, &op_common);
 
 	if (op_common.version != USBIP_VERSION) {
-		dbg("version mismatch: %d %d", op_common.version, USBIP_VERSION);
-		goto err;
+		dbg("version mismatch: %d != %d", op_common.version, USBIP_VERSION);
+		return ERR_VERSION;
 	}
 
-	switch(*code) {
+	switch (*code) {
 	case OP_UNSPEC:
 		break;
 	default:
 		if (op_common.code != *code) {
 			dbg("unexpected pdu %#0x for %#0x", op_common.code, *code);
-			goto err;
+			return ERR_PROTOCOL;
 		}
 	}
 
+	*pstatus = op_common.status;
+
 	if (op_common.status != ST_OK) {
-		dbg("request failed: status: %d", op_common.status);
-		goto err;
+		dbg("request failed: status: %s", dbg_opcode_status(op_common.status));
+		return ERR_STATUS;
 	}
 
 	*code = op_common.code;
-
 	return 0;
-err:
-	return -1;
 }
 
 int usbip_net_set_reuseaddr(SOCKET sockfd)
@@ -203,16 +204,53 @@ int usbip_net_set_nodelay(SOCKET sockfd)
 	return ret;
 }
 
+unsigned
+get_keepalive_timeout(void)
+{
+	char	env_timeout[32];
+	unsigned	timeout;
+	size_t	reqsize;
+
+	if (getenv_s(&reqsize, env_timeout, 32, "KEEPALIVE_TIMEOUT") != 0)
+		return 0;
+
+	if (sscanf_s(env_timeout, "%u", &timeout) == 1)
+		return timeout;
+	return 0;
+}
+
 int usbip_net_set_keepalive(SOCKET sockfd)
 {
-	const int val = 1;
-	int ret;
+	unsigned	timeout;
 
-	ret = setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&val, sizeof(val));
-	if (ret < 0)
-		dbg("setsockopt: SO_KEEPALIVE");
+	timeout = get_keepalive_timeout();
+	if (timeout > 0) {
+		struct tcp_keepalive	keepalive;
+		DWORD	outlen;
+		int	ret;
 
-	return ret;
+		/* windows tries 10 times every keepaliveinterval */
+		keepalive.onoff = 1;
+		keepalive.keepalivetime = timeout * 1000 / 2;
+		keepalive.keepaliveinterval = timeout * 1000 / 10 / 2;
+
+		ret = WSAIoctl(sockfd, SIO_KEEPALIVE_VALS, &keepalive, sizeof(keepalive), NULL, 0, &outlen, NULL, NULL);
+		if (ret != 0) {
+			dbg("failed to set KEEPALIVE via SIO_KEEPALIVE_VALS: 0x%lx", GetLastError());
+			return -1;
+		}
+		return 0;
+	}
+	else {
+		DWORD	val = 1;
+		int	ret;
+
+		ret = setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&val, sizeof(val));
+		if (ret < 0) {
+			dbg("failed to set KEEPALIVE via setsockopt: 0x%lx", GetLastError());
+		}
+		return ret;
+	}
 }
 
 int usbip_net_set_v6only(SOCKET sockfd)

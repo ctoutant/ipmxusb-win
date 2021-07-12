@@ -8,14 +8,28 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifndef VHCI_STATE_PATH
-#define VHCI_STATE_PATH "/var/run/vhci_hcd"
-#endif
+/* Defines for op_code status in server/client op_common PDUs */
+#define ST_OK	0x00
+#define ST_NA	0x01
+	/* Device requested for import is not available */
+#define ST_DEV_BUSY	0x02
+	/* Device requested for import is in error state */
+#define ST_DEV_ERR	0x03
+#define ST_NODEV	0x04
+#define ST_ERROR	0x05
 
-/* kernel module names */
-#define USBIP_CORE_MOD_NAME	"usbip-core"
-#define USBIP_HOST_DRV_NAME	"usbip-host"
-#define USBIP_VHCI_DRV_NAME	"vhci_hcd"
+/* error codes for userspace tools and library */
+#define ERR_GENERAL	(-1)
+#define ERR_INVARG	(-2)
+#define ERR_NETWORK	(-3)
+#define ERR_VERSION	(-4)
+#define ERR_PROTOCOL	(-5)
+#define ERR_STATUS	(-6)
+#define ERR_EXIST	(-7)
+#define ERR_NOTEXIST	(-8)
+#define ERR_DRIVER	(-9)
+#define ERR_PORTFULL	(-10)
+#define ERR_ACCESS	(-11)
 
 /* FIXME: how to sync with drivers/usbip_common.h ? */
 enum usbip_device_status{
@@ -43,11 +57,11 @@ enum usbip_device_status{
 extern int usbip_use_stderr;
 extern int usbip_use_debug ;
 
-#define PROGNAME	"usbip"
+extern const char	*usbip_progname;
 
-#define pr_fmt(fmt)	"%s: %s: " fmt "\n", PROGNAME
+#define pr_fmt(fmt)	"%s: %s: " fmt "\n", usbip_progname
 #define dbg_fmt(fmt)	pr_fmt("%s:%d:[%s] " fmt), "debug",	\
-		        __FILE__, __LINE__, __func__
+		        strrchr(__FILE__, '\\') + 1, __LINE__, __func__
 
 #define err(fmt, ...)								\
 	do {									\

@@ -2,12 +2,13 @@
 
 #include "usbip_common.h"
 #include "usbip_windows.h"
-#include "usbip_wudev.h"
 
 #include <stdlib.h>
 
 #include "usbip_setupdi.h"
 #include "usbip_vhci_api.h"
+
+#include "dbgcode.h"
 
 static int
 walker_devpath(HDEVINFO dev_info, PSP_DEVINFO_DATA pdev_info_data, devno_t devno, void *ctx)
@@ -17,8 +18,8 @@ walker_devpath(HDEVINFO dev_info, PSP_DEVINFO_DATA pdev_info_data, devno_t devno
 	PSP_DEVICE_INTERFACE_DETAIL_DATA	pdev_interface_detail;
 
 	id_hw = get_id_hw(dev_info, pdev_info_data);
-	if (id_hw == NULL || _stricmp(id_hw, "usbipwin\\vhci") != 0) {
-		err("%s: invalid hw id: %s\n", __FUNCTION__, id_hw ? id_hw : "");
+	if (id_hw == NULL || (_stricmp(id_hw, "usbipwin\\vhci") != 0 && _stricmp(id_hw, "root\\vhci_ude") != 0)) {
+		dbg("invalid hw id: %s", id_hw ? id_hw : "");
 		if (id_hw != NULL)
 			free(id_hw);
 		return 0;
@@ -70,65 +71,86 @@ usbip_vhci_driver_close(HANDLE hdev)
 }
 
 static int
-usbip_vhci_get_ports_status(HANDLE hdev, char *buf, int l)
+usbip_vhci_get_ports_status(HANDLE hdev, ioctl_usbip_vhci_get_ports_status *st)
 {
-	ioctl_usbip_vhci_get_ports_status	*st;
-	unsigned long len;
-
-	st = (ioctl_usbip_vhci_get_ports_status *)buf;
-
-	if (l != sizeof(ioctl_usbip_vhci_get_ports_status))
-		return -1;
+	unsigned long	len;
 
 	if (DeviceIoControl(hdev, IOCTL_USBIP_VHCI_GET_PORTS_STATUS,
 		NULL, 0, st, sizeof(ioctl_usbip_vhci_get_ports_status), &len, NULL)) {
 		if (len == sizeof(ioctl_usbip_vhci_get_ports_status))
 			return 0;
 	}
-	return -1;
+	return ERR_GENERAL;
 }
 
 int
 usbip_vhci_get_free_port(HANDLE hdev)
 {
-	char	buf[128];
+	ioctl_usbip_vhci_get_ports_status	status;
 	int	i;
 
-	if (usbip_vhci_get_ports_status(hdev, buf, sizeof(buf)))
+	if (usbip_vhci_get_ports_status(hdev, &status))
 		return -1;
-	for(i = 1;i < sizeof(buf); i++) {
-		if (!buf[i])
+	for (i = 0; i < status.n_max_ports; i++) {
+		if (!status.port_status[i])
 			return i;
 	}
 	return -1;
 }
 
-int
-usbip_vhci_attach_device(HANDLE hdev, int port, const char *instid, usbip_wudev_t *wudev)
+static int
+get_n_max_ports(HANDLE hdev)
 {
-	ioctl_usbip_vhci_plugin  plugin;
+	ioctl_usbip_vhci_get_ports_status	status;
+	int	res;
+
+	res = usbip_vhci_get_ports_status(hdev, &status);
+	if (res < 0)
+		return res;
+	return status.n_max_ports;
+}
+
+int
+usbip_vhci_get_imported_devs(HANDLE hdev, pioctl_usbip_vhci_imported_dev_t *pidevs)
+{
+	ioctl_usbip_vhci_imported_dev	*idevs;
+	int	n_max_ports;
+	unsigned long	len_out, len_returned;
+
+	n_max_ports = get_n_max_ports(hdev);
+	if (n_max_ports < 0) {
+		dbg("failed to get the number of used ports: %s", dbg_errcode(n_max_ports));
+		return ERR_GENERAL;
+	}
+
+	len_out = sizeof(ioctl_usbip_vhci_imported_dev) * (n_max_ports + 1);
+	idevs = (ioctl_usbip_vhci_imported_dev *)malloc(len_out);
+	if (idevs == NULL) {
+		dbg("out of memory");
+		return ERR_GENERAL;
+	}
+
+	if (DeviceIoControl(hdev, IOCTL_USBIP_VHCI_GET_IMPORTED_DEVICES,
+		NULL, 0, idevs, len_out, &len_returned, NULL)) {
+		*pidevs = idevs;
+		return 0;
+	}
+	else {
+		dbg("failed to get imported devices: 0x%lx", GetLastError());
+	}
+
+	free(idevs);
+	return ERR_GENERAL;
+}
+
+int
+usbip_vhci_attach_device(HANDLE hdev, pvhci_pluginfo_t pluginfo)
+{
 	unsigned long	unused;
 
-	plugin.devid = wudev->devid;
-	plugin.vendor = wudev->idVendor;
-	plugin.product = wudev->idProduct;
-	plugin.version = wudev->bcdDevice;
-	plugin.speed = wudev->speed;
-	plugin.inum = wudev->bNumInterfaces;
-	plugin.class = wudev->bDeviceClass;
-	plugin.subclass = wudev->bDeviceSubClass;
-	plugin.protocol = wudev->bDeviceProtocol;
-
-	plugin.port = port;
-
-	if (instid != NULL)
-		mbstowcs_s(NULL, plugin.winstid, MAX_VHCI_INSTANCE_ID, instid, _TRUNCATE);
-	else
-		plugin.winstid[0] = L'\0';
-
 	if (!DeviceIoControl(hdev, IOCTL_USBIP_VHCI_PLUGIN_HARDWARE,
-		&plugin, sizeof(plugin), NULL, 0, &unused, NULL)) {
-		err("usbip_vhci_attach_device: DeviceIoControl failed: err: 0x%lx", GetLastError());
+		pluginfo, pluginfo->size, NULL, 0, &unused, NULL)) {
+		dbg("usbip_vhci_attach_device: DeviceIoControl failed: err: 0x%lx", GetLastError());
 		return -1;
 	}
 
@@ -140,37 +162,22 @@ usbip_vhci_detach_device(HANDLE hdev, int port)
 {
 	ioctl_usbip_vhci_unplug  unplug;
 	unsigned long	unused;
+	DWORD	err;
 
-	unplug.addr = port;
+	unplug.addr = (char)port;
 	if (DeviceIoControl(hdev, IOCTL_USBIP_VHCI_UNPLUG_HARDWARE,
 		&unplug, sizeof(unplug), NULL, 0, &unused, NULL))
 		return 0;
-	return -1;
-}
 
-int
-show_port_status(void)
-{
-	HANDLE fd;
-	int i;
-	char buf[128];
+	err = GetLastError();
+	dbg("unplug error: 0x%lx", err);
 
-	fd = usbip_vhci_driver_open();
-	if (INVALID_HANDLE_VALUE == fd) {
-		err("open vhci driver");
-		return -1;
+	switch (err) {
+	case ERROR_FILE_NOT_FOUND:
+		return ERR_NOTEXIST;
+	case ERROR_INVALID_PARAMETER:
+		return ERR_INVARG;
+	default:
+		return ERR_GENERAL;
 	}
-	if (usbip_vhci_get_ports_status(fd, buf, sizeof(buf))) {
-		err("get port status");
-		return -1;
-	}
-	info("max used port:%d\n", buf[0]);
-	for (i = 1; i <= buf[0]; i++) {
-		if (buf[i])
-			info("port %d: used\n", i);
-		else
-			info("port %d: idle\n", i);
-	}
-	CloseHandle(fd);
-	return 0;
 }
