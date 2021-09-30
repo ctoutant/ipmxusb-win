@@ -127,6 +127,33 @@ process_clear_feature(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_
 }
 
 static void
+process_set_feature(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_t *csp)
+{
+	int	res;
+
+	DBGI(DBG_READWRITE, "set_feature: %s\n", dbg_cspkt_recipient(CSPKT_RECIPIENT(csp)));
+
+	switch (CSPKT_RECIPIENT(csp)) {
+	case BMREQUEST_TO_DEVICE:
+		res = set_feature(devstub, URB_FUNCTION_SET_FEATURE_TO_DEVICE, csp->wValue.W, csp->wIndex.W);
+		break;
+	case BMREQUEST_TO_ENDPOINT:
+		res = set_feature(devstub, URB_FUNCTION_SET_FEATURE_TO_ENDPOINT, csp->wValue.W, csp->wIndex.W);
+		break;
+	default:
+		DBGE(DBG_READWRITE, "set_feature: not supported: %s\n", dbg_cspkt_recipient(CSPKT_RECIPIENT(csp)));
+		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, -1);
+		return;
+	}
+	if (res == 0)
+		reply_stub_req_hdr(devstub, USBIP_RET_SUBMIT, seqnum);
+	else {
+		DBGI(DBG_READWRITE, "failed to set feature\n");
+		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, res);
+	}
+}
+
+static void
 process_select_conf(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_cspkt_t *csp)
 {
 	if (select_usb_conf(devstub, csp->wValue.W))
@@ -157,6 +184,9 @@ process_standard_request(usbip_stub_dev_t *devstub, unsigned int seqnum, usb_csp
 	case USB_REQUEST_CLEAR_FEATURE:
 		process_clear_feature(devstub, seqnum, csp);
 		break;
+	case USB_REQUEST_SET_FEATURE:
+		process_set_feature(devstub, seqnum, csp);
+		break;
 	case USB_REQUEST_SET_CONFIGURATION:
 		process_select_conf(devstub, seqnum, csp);
 		break;
@@ -177,7 +207,8 @@ process_class_vendor_request(usbip_stub_dev_t *devstub, usb_cspkt_t *csp, struct
 	USHORT	cmd;
 	UCHAR	reservedBits;
 	unsigned long	seqnum;
-	BOOLEAN	is_in, res;
+	BOOLEAN	is_in;
+	int	res;
 
 	datalen = hdr->u.cmd_submit.transfer_buffer_length;
 	is_in = hdr->base.direction ? TRUE : FALSE;
@@ -215,7 +246,7 @@ process_class_vendor_request(usbip_stub_dev_t *devstub, usb_cspkt_t *csp, struct
 	reservedBits = csp->bmRequestType.Reserved;
 	seqnum = hdr->base.seqnum;
 	res = submit_class_vendor_req(devstub, is_in, cmd, reservedBits, csp->bRequest, csp->wValue.W, csp->wIndex.W, data, &datalen);
-	if (res) {
+	if (res == 0) {
 		if (is_in) {
 			reply_stub_req_data(devstub, seqnum, data, datalen, TRUE);
 			if (data != NULL)
@@ -225,7 +256,7 @@ process_class_vendor_request(usbip_stub_dev_t *devstub, usb_cspkt_t *csp, struct
 			reply_stub_req_hdr(devstub, USBIP_RET_SUBMIT, seqnum);
 	}
 	else {
-		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, -1);
+		reply_stub_req_err(devstub, USBIP_RET_SUBMIT, seqnum, res);
 		if (is_in && data != NULL)
 			ExFreePoolWithTag(data, USBIP_STUB_POOL_TAG);
 	}

@@ -33,7 +33,7 @@ walker_devpath(HDEVINFO dev_info, PSP_DEVINFO_DATA pdev_info_data, devno_t devno
 
 	*pdevpath = _strdup(pdev_interface_detail->DevicePath);
 	free(pdev_interface_detail);
-	return -1;
+	return 1;
 }
 
 static char *
@@ -41,7 +41,7 @@ get_vhci_devpath(void)
 {
 	char	*devpath;
 
-	if (traverse_intfdevs(walker_devpath, &GUID_DEVINTERFACE_VHCI_USBIP, &devpath) != -1) {
+	if (traverse_intfdevs(walker_devpath, &GUID_DEVINTERFACE_VHCI_USBIP, &devpath) != 1) {
 		return NULL;
 	}
 
@@ -149,9 +149,12 @@ usbip_vhci_attach_device(HANDLE hdev, pvhci_pluginfo_t pluginfo)
 	unsigned long	unused;
 
 	if (!DeviceIoControl(hdev, IOCTL_USBIP_VHCI_PLUGIN_HARDWARE,
-		pluginfo, pluginfo->size, NULL, 0, &unused, NULL)) {
+		pluginfo, pluginfo->size, pluginfo, sizeof(vhci_pluginfo_t), &unused, NULL)) {
+		DWORD	err = GetLastError();
+		if (err == ERROR_HANDLE_EOF)
+			return ERR_PORTFULL;
 		dbg("usbip_vhci_attach_device: DeviceIoControl failed: err: 0x%lx", GetLastError());
-		return -1;
+		return ERR_GENERAL;
 	}
 
 	return 0;

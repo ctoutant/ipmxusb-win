@@ -28,6 +28,8 @@
 
 #include "usbip_dscr.h"
 
+#define ATTACHER	"attacher.exe"
+
 static const char usbip_attach_usage_string[] =
 	"usbip attach <args>\n"
 	"    -r, --remote=<host>    The machine with exported USB devices\n"
@@ -44,7 +46,6 @@ static int
 import_device(SOCKET sockfd, pvhci_pluginfo_t pluginfo, HANDLE *phdev)
 {
 	HANDLE	hdev;
-	int	port;
 	int	rc;
 
 	hdev = usbip_vhci_driver_open();
@@ -53,26 +54,20 @@ import_device(SOCKET sockfd, pvhci_pluginfo_t pluginfo, HANDLE *phdev)
 		return ERR_DRIVER;
 	}
 
-	port = usbip_vhci_get_free_port(hdev);
-	if (port < 0) {
-		dbg("no free port");
-		usbip_vhci_driver_close(hdev);
-		return ERR_PORTFULL;
-	}
-
-	dbg("got free port: %d", port);
-
-	pluginfo->port = port;
-
 	rc = usbip_vhci_attach_device(hdev, pluginfo);
 	if (rc < 0) {
-		dbg("failed to attach device: %d", rc);
+		if (rc == ERR_PORTFULL) {
+			dbg("no free port");
+		}
+		else {
+			dbg("failed to attach device: %d", rc);
+		}
 		usbip_vhci_driver_close(hdev);
-		return ERR_GENERAL;
+		return rc;
 	}
 
 	*phdev = hdev;
-	return port;
+	return pluginfo->port;
 }
 
 static pvhci_pluginfo_t
@@ -239,7 +234,7 @@ execute_attacher(HANDLE hdev, SOCKET sockfd, int rhport)
 	si.dwFlags = STARTF_USESTDHANDLES;
 	ZeroMemory(&pi, sizeof(pi));
 
-	res = CreateProcess("attacher.exe", "attacher.exe", NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
+	res = CreateProcess(ATTACHER, ATTACHER, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
 	if (!res) {
 		DWORD	err = GetLastError();
 		if (err == ERROR_FILE_NOT_FOUND)
@@ -316,10 +311,10 @@ attach_device(const char *host, const char *busid, const char *serial, BOOL ters
 	else {
 		switch (ret) {
 		case ERR_NOTEXIST:
-			err("attacher.exe not found");
+			err(ATTACHER " not found");
 			break;
 		default:
-			err("failed to running attacher.exe");
+			err("failed to running " ATTACHER);
 			break;
 		}
 		ret = 4;
@@ -328,6 +323,16 @@ attach_device(const char *host, const char *busid, const char *serial, BOOL ters
 	closesocket(sockfd);
 
 	return ret;
+}
+
+static BOOL
+check_attacher(void)
+{
+	DWORD	bintype;
+
+	if (!GetBinaryType(ATTACHER, &bintype))
+		return FALSE;
+	return TRUE;
 }
 
 int usbip_attach(int argc, char *argv[])
@@ -381,5 +386,9 @@ int usbip_attach(int argc, char *argv[])
 		return 1;
 	}
 
+	if (!check_attacher()) {
+		err(ATTACHER " not found");
+		return 126;
+	}
 	return attach_device(host, busid, serial, terse);
 }
